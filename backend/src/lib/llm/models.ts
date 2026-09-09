@@ -51,9 +51,12 @@ export const GEMINI_LOW_MODELS = [
 ] as const;
 export const OPENAI_LOW_MODELS = ["gpt-5.6-luna", "gpt-5.4-mini"] as const;
 
-export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
-export const DEFAULT_TITLE_MODEL = "gemini-3.5-flash-lite";
-export const DEFAULT_TABULAR_MODEL = "gemini-3-flash-preview";
+// AdminLess fork: inference is served by the ChatForGood gateway through the
+// OpenAI-compatible "ollama" provider (OLLAMA_BASE_URL / OLLAMA_API_KEY), so
+// a fresh account works without any cloud key.
+export const DEFAULT_MAIN_MODEL = "ollama/qwen/qwen3.8-27b";
+export const DEFAULT_TITLE_MODEL = "ollama/liquid/lfm2.5-2.6b";
+export const DEFAULT_TABULAR_MODEL = "ollama/qwen/qwen3.8-27b";
 
 const STANDARD_REASONING_LEVELS: readonly ReasoningLevel[] =
     REASONING_LEVELS.filter((level) => level !== "max");

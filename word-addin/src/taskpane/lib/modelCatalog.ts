@@ -41,7 +41,7 @@ export const STATIC_MODELS: readonly ModelOption[] = [
 
 for (const model of STATIC_MODELS) model.source = "Direct";
 
-export const DEFAULT_MODEL_ID = "";
+export const DEFAULT_MODEL_ID = "ollama/qwen/qwen3.8-27b";
 export const ALLOWED_MODEL_IDS = new Set(
   STATIC_MODELS.map((model) => model.id),
 );

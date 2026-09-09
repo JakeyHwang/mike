@@ -67,6 +67,8 @@ import {
     getTabularReview,
     getTabularReviewAccess,
     getTabularReviewPeople,
+    getUpdateInfo,
+    getUpdateStatus,
     getUserExportStatus,
     getUserProfile,
     getWorkflow,
@@ -145,6 +147,7 @@ import {
     setMcpToolEnabled,
     shareWorkflow,
     startMcpConnectorOAuth,
+    startUpdate,
     startUserExport,
     streamChat,
     streamProjectChat,
@@ -2626,6 +2629,30 @@ describe("thin endpoint wrappers", () => {
             call: () => revokeProjectAccess("p1", "counsel+eu@outside.example"),
             url: "/projects/p1/access/counsel%2Beu%40outside.example",
             method: "DELETE",
+        },
+        // System updates
+        {
+            name: "getUpdateInfo",
+            call: () => getUpdateInfo(),
+            url: "/system/update",
+        },
+        {
+            // ?refresh=1 is what bypasses the backend's one-hour cache, so a
+            // dropped query param would silently pin the page to stale data.
+            name: "getUpdateInfo (refresh)",
+            call: () => getUpdateInfo(true),
+            url: "/system/update?refresh=1",
+        },
+        {
+            name: "startUpdate",
+            call: () => startUpdate(),
+            url: "/system/update",
+            method: "POST",
+        },
+        {
+            name: "getUpdateStatus",
+            call: () => getUpdateStatus(),
+            url: "/system/update/status",
         },
     ];
 

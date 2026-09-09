@@ -2,6 +2,8 @@
 
 ## Run and deploy Mike
 
+- [AdminLess fork](adminless-fork.md) — what this fork adds (gateway defaults,
+  installer, in-app updater), how releases reach installed copies, upstream sync
 - [Local development](local-development.md) — Docker Compose, local services,
   registration, Ollama, and first-run setup
 - [Manual and production deployment](deployment.md) — managed infrastructure,

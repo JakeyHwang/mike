@@ -6,6 +6,11 @@ These instructions apply to the entire repository. Keep changes focused,
 preserve unrelated work in the tree, and follow the more detailed guidance in
 `CONTRIBUTING.md` and `docs/` when working in a documented subsystem.
 
+This is the AdminLess fork. Read `docs/adminless-fork.md` before changing
+deployment, inference defaults, the installer, the updater, or release
+tooling: it describes what the fork adds, how releases reach installed
+copies, and the compatibility rules that follow from that.
+
 The repository requires Node.js 22 or newer and contains three applications:
 
 - `frontend/`: Next.js web application.

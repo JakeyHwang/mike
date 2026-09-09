@@ -2835,3 +2835,60 @@ export async function deleteWorkflowAsset(
         method: "DELETE",
     });
 }
+
+// ---------------------------------------------------------------------------
+// System updates
+// ---------------------------------------------------------------------------
+//
+// The self-hosted installer ships an `updater` sidecar. The backend is the
+// only caller of that sidecar; the browser only sees these three endpoints.
+
+export interface UpdateInfo {
+    current: string;
+    latest: string | null;
+    available: boolean;
+    publishedAt: string | null;
+    notes: string | null;
+    url: string | null;
+}
+
+export type UpdateStep =
+    | "backup"
+    | "download"
+    | "configure"
+    | "pull"
+    | "start"
+    | "verify"
+    | "launcher";
+
+/**
+ * `unknown` is not an updater state: it is what the backend answers while the
+ * updater container is being recreated by the update it is running, so the UI
+ * must read it as "still going", not as a failure.
+ */
+export interface UpdateStatus {
+    state: "idle" | "running" | "done" | "failed" | "unknown";
+    tag?: string;
+    fromTag?: string;
+    step?: UpdateStep;
+    completedSteps?: UpdateStep[];
+    startedAt?: string;
+    finishedAt?: string | null;
+    error?: string | null;
+    logTail?: string;
+}
+
+/** `refresh` bypasses the backend's one-hour GitHub cache. */
+export async function getUpdateInfo(refresh = false): Promise<UpdateInfo> {
+    return apiRequest<UpdateInfo>(
+        `/system/update${refresh ? "?refresh=1" : ""}`,
+    );
+}
+
+export async function startUpdate(): Promise<{ tag: string }> {
+    return apiRequest<{ tag: string }>("/system/update", { method: "POST" });
+}
+
+export async function getUpdateStatus(): Promise<UpdateStatus> {
+    return apiRequest<UpdateStatus>("/system/update/status");
+}

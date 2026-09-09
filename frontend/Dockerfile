@@ -11,6 +11,9 @@ COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
 COPY backend/src /backend/src
+# frontend/src/wordAddin/*.test.ts import the add-in's sources the same way;
+# `next build` type-checks them, so they must resolve here too.
+COPY word-addin/src /word-addin/src
 
 RUN npm run build
 

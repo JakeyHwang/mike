@@ -1,7 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { useSelectedModel, useSelectedReasoning } from "./useSelectedModel";
-import { canonicalModelId } from "../components/assistant/ModelToggle";
+import {
+    canonicalModelId,
+    DEFAULT_MODEL_ID,
+} from "../components/assistant/ModelToggle";
 import type { ApiKeyState } from "../lib/mikeApi";
 
 const keys: ApiKeyState = {
@@ -21,9 +24,9 @@ const routerSelections = {
 };
 
 describe("useSelectedModel", () => {
-    it("has no invented default when neither saved source is usable", () => {
+    it("falls back to the product default when neither saved source is usable", () => {
         const { result } = renderHook(() => useSelectedModel());
-        expect(result.current[0]).toBe("");
+        expect(result.current[0]).toBe(DEFAULT_MODEL_ID);
     });
 
     it("uses the saved chat model before the shared last-selected model", () => {

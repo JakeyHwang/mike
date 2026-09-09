@@ -9,7 +9,8 @@
 .git
 backend/dist
 backend/supabase
-word-addin
+word-addin/*
+!word-addin/src
 desktop
 docs
 **/.env

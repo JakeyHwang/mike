@@ -33,3 +33,16 @@ backend/supabase/*
 .current-issue.md
 .implementation-plan.md
 .implement-config
+
+# AdminLess: agent-harness state and explicitly private notes. Design specs and
+# plans under docs/superpowers/ are open-source documentation and stay tracked.
+.omp/
+.claude/
+.codex/
+.gemini/
+.cursor/
+.superpowers/
+CLAUDE.local.md
+AGENTS.local.md
+/notes/
+*.private.md

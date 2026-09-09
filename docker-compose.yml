@@ -2,6 +2,10 @@
 # Supabase is embedded (db + auth + rest + gateway); storage is RustFS.
 # The only thing you must supply is one model API key in backend/.env.
 #
+# AdminLess fork: application images are pulled from GHCR at MIKE_VERSION
+# (see .github/workflows/release.yml). To build from source instead:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+#
 # JWT secret + anon/service_role keys below are the well-known Supabase local
 # demo values — fine for localhost, NOT for anything exposed. The keys are JWTs
 # signed with the secret; don't change one without regenerating the others.
@@ -54,7 +58,7 @@ services:
       GOTRUE_DISABLE_SIGNUP: ${GOTRUE_DISABLE_SIGNUP:-false}
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
       GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
-      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOTRUE_EXTERNAL_GOOGLE_ENABLED:-true}
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOTRUE_EXTERNAL_GOOGLE_ENABLED:-false}
       GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID:-}
       GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOTRUE_EXTERNAL_GOOGLE_SECRET:-}
       GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${SUPABASE_PUBLIC_URL:-http://localhost:54321}/auth/v1/callback
@@ -246,8 +250,7 @@ services:
 
   # --- One-shot: download, validate, and transactionally import mike-workflows.
   workflow-sync:
-    build: ./backend
-    image: mike-backend:local
+    image: ghcr.io/jakeyhwang/mike-backend:${MIKE_VERSION:-latest}
     env_file:
       - path: ./backend/.env
         required: false
@@ -270,8 +273,7 @@ services:
         condition: service_healthy
     restart: "no"
   backend:
-    build: ./backend
-    image: mike-backend:local
+    image: ghcr.io/jakeyhwang/mike-backend:${MIKE_VERSION:-latest}
     ports:
       - "${BACKEND_PORT:-3001}:3001"
     # ponytail: both optional — local dev keeps secrets in backend/.env, hosted
@@ -314,6 +316,11 @@ services:
       # container/machine, set WORKERS_MODE=none here and enable the
       # `worker` service below.
       - WORKERS_MODE=${WORKERS_MODE:-thread}
+      # In-app updates: the version shown in Settings, the GitHub repo whose
+      # releases are checked, and the updater sidecar (compose network only).
+      - MIKE_VERSION=${MIKE_VERSION:-dev}
+      - MIKE_UPDATE_REPO=${MIKE_UPDATE_REPO:-JakeyHwang/mike}
+      - UPDATER_URL=http://updater:8085
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -360,11 +367,7 @@ services:
   #   restart: unless-stopped
 
   frontend:
-    build:
-      # Repo-root context: the frontend's shared types import type-only
-      # definitions from backend/src (see frontend/Dockerfile).
-      context: .
-      dockerfile: frontend/Dockerfile
+    image: ghcr.io/jakeyhwang/mike-frontend:${MIKE_VERSION:-latest}
     environment:
       - API_BASE_URL=${API_BASE_URL:-http://backend:3001}
     ports:
@@ -372,6 +375,34 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
+    restart: unless-stopped
+
+  # --- In-app updater (see docs/superpowers/specs/2026-09-09-in-app-updater-design.md).
+  # The image is built from AdminLess's private deployment tooling and lives in
+  # a private GHCR package: the installer logs the Docker daemon in with a
+  # per-firm read-only token. Without that token this service cannot be pulled;
+  # a source build of this repository runs fine without it (drop the service or
+  # set MIKE_UPDATER_IMAGE to your own build).
+  # Mounts the Docker socket, which is host-root equivalent, so it publishes NO
+  # ports: only the backend reaches it, on the compose network at
+  # http://updater:8085. The project dir is mounted at the path the Docker
+  # daemon sees (MIKE_HOST_PROJECT_DIR, written by the installer) so `docker
+  # compose` inside the container resolves bind mounts exactly like the host.
+  # `POST /apply` starts a one-off `updater apply <tag>` sibling container that
+  # backs up the database, swaps the project files, pulls and restarts the stack.
+  updater:
+    image: ${MIKE_UPDATER_IMAGE:-ghcr.io/jakeyhwang/mikeoss-updater}:${MIKE_VERSION:-latest}
+    environment:
+      - PROJECT_DIR=${MIKE_HOST_PROJECT_DIR:-/project}
+      - HOST_BIN_DIR=/host-bin
+      - MIKE_HOST_OS=${MIKE_HOST_OS:-}
+      - MIKE_HOST_ARCH=${MIKE_HOST_ARCH:-}
+      - MIKE_UPDATE_REPO=${MIKE_UPDATE_REPO:-JakeyHwang/mike}
+      - FRONTEND_URL_INTERNAL=http://frontend:3000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${MIKE_HOST_PROJECT_DIR:-.}:${MIKE_HOST_PROJECT_DIR:-/project}
+      - ${MIKE_HOST_BIN_DIR:-./bin}:/host-bin
     restart: unless-stopped
 
 volumes:

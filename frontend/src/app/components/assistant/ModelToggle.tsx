@@ -54,7 +54,10 @@ export const SETTINGS_MODELS: ModelOption[] = [
 for (const model of MODELS) model.source = "Direct";
 for (const model of SETTINGS_MODELS) model.source ??= "Direct";
 
-export const DEFAULT_MODEL_ID = "";
+// AdminLess fork: the ChatForGood gateway model, so a fresh account can send
+// its first message without opening the picker. Mirrored in
+// word-addin/src/taskpane/lib/modelCatalog.ts.
+export const DEFAULT_MODEL_ID = "ollama/qwen/qwen3.8-27b";
 
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 

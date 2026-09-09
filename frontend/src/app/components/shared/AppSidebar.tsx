@@ -21,6 +21,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { MikeIcon } from "@/app/components/chat/mike-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
+import { SidebarUpdateNotice } from "@/app/components/shared/SidebarUpdateNotice";
 import {
     ChatSkeuoIcon,
     FolderSkeuoIcon,
@@ -554,6 +555,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
 
                 {/* User Profile */}
                 <div className="mt-auto p-1">
+                    <SidebarUpdateNotice isOpen={isOpen} />
                     {user && (
                         <div className="relative">
                             <button

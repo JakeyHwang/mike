@@ -35,8 +35,11 @@ function catalogPricing(
     };
 }
 
-// Live list of locally installed Ollama models, shaped like the frontend's
-// ModelOption. Returns [] when Ollama is unreachable so the app still works.
+// Live list of chat models behind OLLAMA_BASE_URL (an Ollama daemon or any
+// OpenAI-compatible gateway), shaped like the frontend's ModelOption. Returns
+// [] when the endpoint is unreachable so the app still works.
+// AdminLess fork: the ChatForGood gateway also lists speech models; hide them.
+const NON_CHAT_MODEL_ID = /asr|tts|whisper|chatterbox|embed|transcri/i;
 modelsRouter.get("/ollama", requireAuth, async (_req, res) => {
     const base = (
         process.env.OLLAMA_BASE_URL?.trim() || "http://localhost:11434/v1"
@@ -45,11 +48,13 @@ modelsRouter.get("/ollama", requireAuth, async (_req, res) => {
         const r = await fetch(`${base}/models`, { headers: authHeaders() });
         if (!r.ok) return void res.json({ models: [] });
         const data = (await r.json()) as { data?: { id: string }[] };
-        const models = (data.data ?? []).map((m) => ({
-            id: `ollama/${m.id}`,
-            label: `${m.id} (local)`,
-            group: "Local",
-        }));
+        const models = (data.data ?? [])
+            .filter((m) => !NON_CHAT_MODEL_ID.test(m.id))
+            .map((m) => ({
+                id: `ollama/${m.id}`,
+                label: m.id,
+                group: "Local",
+            }));
         res.json({ models });
     } catch {
         res.json({ models: [] });

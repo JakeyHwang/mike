@@ -71,6 +71,7 @@ authentication behavior, Ollama setup, and first-run guidance.
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [AdminLess fork: development and releases](docs/adminless-fork.md)
 - [Local development](docs/local-development.md)
 - [Manual and production deployment](docs/deployment.md)
 - [Troubleshooting](docs/troubleshooting.md)
@@ -88,6 +89,23 @@ Mike's system assistant and tabular-review workflows are maintained in the
 [`Open-Legal-Products/mike-workflows`](https://github.com/Open-Legal-Products/mike-workflows)
 repository. See [Contributing](CONTRIBUTING.md#system-workflows) for how they are
 packaged and synchronized with this application.
+
+## AdminLess fork
+
+This repository is a modified version of
+[Open-Legal-Products/mike](https://github.com/Open-Legal-Products/mike),
+maintained by AdminLess since September 2026. Changes on top of upstream:
+
+- Inference defaults to an OpenAI-compatible gateway configured through
+  `OLLAMA_BASE_URL` / `OLLAMA_API_KEY`; no cloud model key is required.
+- Application images are published to GHCR and pulled by `docker-compose.yml`;
+  `docker-compose.build.yml` builds from source.
+- An in-app update check and one-click update (Settings → Updates), backed by
+  an updater sidecar service that AdminLess distributes to the firms it
+  installs for.
+
+See [docs/adminless-fork.md](docs/adminless-fork.md) for how the fork is
+developed and released. Releases: <https://github.com/JakeyHwang/mike/releases>.
 
 ## License
 

@@ -22,6 +22,7 @@ import { sourceDocumentsRouter } from "./routes/sourceDocuments";
 import { auditRouter } from "./routes/audit";
 import { authRouter } from "./routes/auth";
 import { uploadSessionsRouter } from "./routes/uploadSessions";
+import { systemRouter } from "./routes/system";
 import { manifestPublicKey } from "./lib/manifestSigning";
 import {
   handleUnhandledError,
@@ -300,6 +301,7 @@ app.use("/download", downloadsRouter);
 app.use("/documents", sourceDocumentsRouter);
 app.use("/audit", auditRouter);
 app.use("/upload-sessions", uploadSessionsRouter);
+app.use("/system", systemRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

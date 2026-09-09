@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ALLOWED_MODEL_IDS,
     canonicalModelId,
+    DEFAULT_MODEL_ID,
     ROUTER_SLUGS,
     type RouterSlug,
     type ReasoningLevel,
@@ -64,7 +65,7 @@ function usableStoredModel(
     return canonical;
 }
 
-/** Resolve chat model → profile last-selected model, without a product default. */
+/** Resolve chat model → profile last-selected model → product default. */
 export function useSelectedModel(
     sources: SelectedModelSources = {},
 ): [string, (id: string) => void] {
@@ -123,7 +124,7 @@ export function useSelectedModel(
                 selectionSources.lastSelectedModel,
                 selectionSources,
             ) ??
-            "";
+            DEFAULT_MODEL_ID;
         setModelState(next);
     }, [selectionSources]);
     /* eslint-enable react-hooks/set-state-in-effect */

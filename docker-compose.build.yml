@@ -1,0 +1,15 @@
+# Override that builds the application images from this checkout instead of
+# pulling them from GHCR:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+services:
+  workflow-sync:
+    build: ./backend
+    image: mike-backend:local
+  backend:
+    build: ./backend
+    image: mike-backend:local
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: mike-frontend:local

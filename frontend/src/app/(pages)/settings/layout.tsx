@@ -34,6 +34,7 @@ const TABS: TabDef[] = [
         href: "/settings/byok",
     },
     { id: "connectors", label: "Connectors", href: "/settings/connectors" },
+    { id: "updates", label: "Updates", href: "/settings/updates" },
 ];
 
 export default function SettingsLayout({
