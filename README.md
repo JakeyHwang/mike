@@ -19,6 +19,7 @@ Website: [mikeoss.com](https://mikeoss.com)
 - Run reusable assistant and tabular-review workflows
 - Organize projects, folders, and a document library
 - Verify citations and research US case law with CourtListener
+- Search the web for up-to-date sources while researching, with cited pages
 - Work from Microsoft Word with the beta task-pane add-in
 - Run supported language models locally through Ollama
 

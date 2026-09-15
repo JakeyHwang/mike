@@ -117,9 +117,10 @@ helpers in `frontend/src/app/lib/userFacingError.ts` for unexpected failures.
 Keep route handlers thin when logic is reusable. Preserve authorization checks
 and ownership/project-sharing boundaries on every new query or mutation. Never
 send internal exception messages to clients: use the helpers in
-`backend/src/lib/httpError.ts`; logging must use the redaction helpers in
-`backend/src/lib/safeError.ts`. Intentional validation and permission failures
-should remain explicit 4xx responses.
+`backend/src/lib/httpError.ts` — in particular `sendInternalError`, which
+replies with a generic message and redacts the details before they are logged.
+Intentional validation and permission failures should remain explicit 4xx
+responses.
 
 ## Database Migrations
 
