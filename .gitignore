@@ -49,3 +49,6 @@ AGENTS.local.md
 /deploy/
 /notes/
 *.private.md
+
+# Created by Docker for the updater credential mount on source builds (docker-compose.yml).
+/updater-auth/

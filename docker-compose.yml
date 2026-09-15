@@ -403,6 +403,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${MIKE_HOST_PROJECT_DIR:-.}:${MIKE_HOST_PROJECT_DIR:-/project}
       - ${MIKE_HOST_BIN_DIR:-./bin}:/host-bin
+      # Registry credential for the private updater image (a plain Docker
+      # config.json written by the installer); a container cannot use the
+      # host's credential store. Empty/absent is fine for public images.
+      - ${MIKE_UPDATER_AUTH_DIR:-./updater-auth}:/root/.docker:ro
     restart: unless-stopped
 
 volumes:
