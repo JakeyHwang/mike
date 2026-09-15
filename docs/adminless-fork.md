@@ -44,6 +44,18 @@ Design documents for fork features live in `docs/superpowers/specs/` next to
 upstream's. They are open-source documentation; write them so a stranger can
 read them.
 
+### Fork features that have landed
+
+<!-- context:fork-additions:start -->
+Application features this fork adds on top of upstream, as distinct from the
+packaging and inference differences in the table above. Each is ordinary
+AGPL-3.0 code in this repository.
+
+| Feature | What it adds | Where |
+| --- | --- | --- |
+| Web search (2026-09-15) | `web_search` and `read_page` chat tools: discovery through Gemini's Google-grounding API, resolution of grounding-redirect URLs to real ones, per-jurisdiction authority ranking of sources, and full HTML/PDF page reading — every outbound request going through one shared https-only, no-credentials, no-private-network guard. In the UI: step rows for each search and page read, web sources in the Citations card with click-through links, Google's related searches, and a read-only status row in Settings → Features. Enabled per install by `WEB_SEARCH_GEMINI_API_KEY` (separate from `GEMINI_API_KEY`, which only selects Gemini as a chat model); with the key absent the tools are neither advertised nor callable. | `backend/src/lib/webSearch/`, `backend/src/lib/chat/tools/webSearchTools.ts`, `backend/src/lib/http/guardedFetch.ts`, `backend/src/routes/user.ts`; `frontend/src/app/components/assistant/message/{EventBlocks,CitationSources,citationVerification}.tsx`, `frontend/src/app/(pages)/settings/features/page.tsx`. Design: `docs/superpowers/specs/2026-09-15-web-search-design.md` |
+<!-- context:fork-additions:end -->
+
 ## Layout of an installed copy
 
 The installer creates `~/MikeOSS` (`%USERPROFILE%\MikeOSS` on Windows):
