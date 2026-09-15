@@ -118,7 +118,7 @@ Keep route handlers thin when logic is reusable. Preserve authorization checks
 and ownership/project-sharing boundaries on every new query or mutation. Never
 send internal exception messages to clients: use the helpers in
 `backend/src/lib/httpError.ts` — in particular `sendInternalError`, which
-replies with a generic message and redacts the details before they are logged.
+replies with a generic message and keeps the real error in the server log only.
 Intentional validation and permission failures should remain explicit 4xx
 responses.
 
