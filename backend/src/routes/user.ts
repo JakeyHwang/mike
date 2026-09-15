@@ -69,6 +69,7 @@ import {
     type RouterModelSelections,
     type RouterSlug,
 } from "../lib/routerModels";
+import { isWebSearchEnabled } from "../lib/chat/tools/webSearchTools";
 
 export const userRouter = Router();
 
@@ -622,6 +623,9 @@ function serializeProfile(
             "high",
         mfaOnLogin: row.mfa_on_login === true,
         legalResearchUs: row.legal_research_us !== false,
+        // Install-wide, not a user setting: the search key is provisioned at
+        // install time, so this is reported, never written back.
+        webSearchStatus: isWebSearchEnabled() ? "active" : "not_configured",
         quickActionsVisible: row.quick_actions_visible !== false,
         darkMode: row.dark_mode === true,
         transparentTables: row.transparent_tables !== false,

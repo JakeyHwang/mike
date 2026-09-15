@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Loader2 } from "lucide-react";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
 import { displayCitationQuote, formatCitationPage } from "../../shared/types";
-import type { Citation } from "../../shared/types";
+import type { Citation, WebSearchSuggestion } from "../../shared/types";
 import { CitationPillUI } from "@/shared/ui/CitationPillUI";
 import { RESPONSE_GLASS_SURFACE } from "./messageStyles";
 import {
@@ -19,6 +19,9 @@ type CitationSourceRow = {
 };
 
 function citationSourceKey(annotation: Citation): string {
+    if (annotation.kind === "web") {
+        return `web:${annotation.url}`;
+    }
     if (annotation.kind === "case") {
         return `case:${annotation.cluster_id}`;
     }
@@ -26,6 +29,9 @@ function citationSourceKey(annotation: Citation): string {
 }
 
 function citationSourceLabel(annotation: Citation): string {
+    if (annotation.kind === "web") {
+        return annotation.title.trim() || annotation.domain;
+    }
     if (annotation.kind === "case") {
         const caseName = annotation.case_name?.trim();
         const citation = annotation.citation?.trim();
@@ -36,6 +42,16 @@ function citationSourceLabel(annotation: Citation): string {
 }
 
 export function citationTooltip(annotation: Citation): string {
+    if (annotation.kind === "web") {
+        // Web sources are never quote-verified; the tooltip says where the
+        // text came from instead of implying a verification result.
+        const origin =
+            annotation.snippet_source === "citation"
+                ? "Direct citation"
+                : "From search summary";
+        const text = annotation.quote?.trim() || annotation.snippet.trim();
+        return text ? `${origin}: "${text}"` : `${origin}: ${annotation.url}`;
+    }
     const locator = formatCitationPage(annotation);
     const quote = displayCitationQuote(annotation);
     const source = locator ? `${locator}: "${quote}"` : `"${quote}"`;
@@ -44,6 +60,18 @@ export function citationTooltip(annotation: Citation): string {
 }
 
 function CitationSourceIcon({ annotation }: { annotation: Citation }) {
+    if (annotation.kind === "web") {
+        return (
+            <Image
+                src="/icons/legal-sources/web.svg"
+                alt=""
+                aria-hidden="true"
+                width={14}
+                height={14}
+                className="h-3.5 w-3.5 shrink-0"
+            />
+        );
+    }
     if (annotation.kind === "case") {
         return (
             <Image
@@ -98,11 +126,16 @@ export function buildCitationAppendix(citations: Citation[]) {
     let previousSourceKey: string | null = null;
     const entries = citations.map((annotation) => {
         const sourceKey = citationSourceKey(annotation);
-        const label =
-            sourceKey === previousSourceKey
-                ? "Id."
-                : citationSourceLabel(annotation);
+        const isRepeat = sourceKey === previousSourceKey;
         previousSourceKey = sourceKey;
+        // Web lines end in a bare URL, so they take no terminal period.
+        const label = isRepeat
+            ? "Id."
+            : annotation.kind === "web"
+              ? `${[annotation.title.trim(), annotation.domain]
+                    .filter(Boolean)
+                    .join(", ")} — ${annotation.url}`
+              : ensureTerminalPeriod(citationSourceLabel(annotation));
         return {
             number: annotation.ref,
             label,
@@ -114,14 +147,14 @@ export function buildCitationAppendix(citations: Citation[]) {
         "Citations",
         ...entries.map((entry) => {
             const quote = entry.quote ? ` "${entry.quote}"` : "";
-            return `${entry.number} ${ensureTerminalPeriod(entry.label)}${quote}`;
+            return `${entry.number} ${entry.label}${quote}`;
         }),
     ];
     const html = [
         `<section class="copied-citations">`,
         `<h3>Citations</h3>`,
         ...entries.map((entry) => {
-            const label = escapeHtmlText(ensureTerminalPeriod(entry.label));
+            const label = escapeHtmlText(entry.label);
             const quote = entry.quote
                 ? ` &quot;${escapeHtmlText(entry.quote)}&quot;`
                 : "";
@@ -138,6 +171,7 @@ export function CitationsBlock({
     onCitationClick,
     onOpenSource,
     canOpenSource,
+    suggestions = [],
     showWhenEmpty = false,
     isLoading = false,
 }: {
@@ -146,6 +180,12 @@ export function CitationsBlock({
     onCitationClick?: (citation: Citation) => void;
     onOpenSource?: (citation: Citation) => void;
     canOpenSource?: (citation: Citation) => boolean;
+    /**
+     * The turn's Google "related searches", deduped across its searches. Shown
+     * only when the answer cites a web source; otherwise the expanded
+     * `WebSearchBlock` shows them, so they render in exactly one place.
+     */
+    suggestions?: WebSearchSuggestion[];
     showWhenEmpty?: boolean;
     isLoading?: boolean;
 }) {
@@ -219,6 +259,23 @@ export function CitationsBlock({
                         );
                     })}
                 </div>
+                {suggestions.length > 0 &&
+                    citations.some((citation) => citation.kind === "web") && (
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 bg-white/25 px-3 py-2 text-sm font-serif text-gray-500">
+                            <span>Related Google searches</span>
+                            {suggestions.map((suggestion) => (
+                                <a
+                                    key={suggestion.url}
+                                    href={suggestion.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-950"
+                                >
+                                    {suggestion.label}
+                                </a>
+                            ))}
+                        </div>
+                    )}
             </div>
         </div>
     );

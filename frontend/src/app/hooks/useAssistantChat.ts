@@ -9,6 +9,10 @@ import type {
   AssistantEvent,
   Citation,
   Message,
+  ReadPageFailureReason,
+  WebSearchEventSource,
+  WebSearchFailureReason,
+  WebSearchSuggestion,
 } from "@/app/components/shared/types";
 
 interface UseAssistantChatOptions {
@@ -64,6 +68,38 @@ function parseCourtlistenerCaseSearches(value: unknown) {
       };
     })
     .filter((item): item is NonNullable<typeof item> => !!item);
+}
+
+function parseWebSearchResults(value: unknown): WebSearchEventSource[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const row = item as Record<string, unknown>;
+    if (typeof row.url !== "string" || !row.url) return [];
+    return [
+      {
+        id: typeof row.id === "string" ? row.id : "",
+        title: typeof row.title === "string" ? row.title : "",
+        url: row.url,
+        domain: typeof row.domain === "string" ? row.domain : "",
+        tier:
+          typeof row.tier === "string"
+            ? (row.tier as WebSearchEventSource["tier"])
+            : "other",
+      },
+    ];
+  });
+}
+
+function parseWebSearchSuggestions(value: unknown): WebSearchSuggestion[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const row = item as Record<string, unknown>;
+    if (typeof row.label !== "string" || !row.label) return [];
+    if (typeof row.url !== "string" || !row.url) return [];
+    return [{ label: row.label, url: row.url }];
+  });
 }
 
 export function useAssistantChat({
@@ -897,6 +933,91 @@ export function useAssistantChat({
                   error:
                     typeof data.error === "string"
                       ? (data.error as string)
+                      : undefined,
+                  isStreaming: false,
+                }),
+              );
+              pushThinkingPlaceholder();
+              continue;
+            }
+
+            if (data.type === "web_search_start") {
+              pushEvent({
+                type: "web_search",
+                query: (data.query as string) ?? "",
+                result_count: 0,
+                results: [],
+                suggestions: [],
+                isStreaming: true,
+              });
+              continue;
+            }
+
+            if (data.type === "web_search") {
+              const results = parseWebSearchResults(data.results);
+              updateMatchingEvent(
+                (e) =>
+                  e.type === "web_search" &&
+                  e.query === (data.query as string) &&
+                  !!e.isStreaming,
+                () => ({
+                  type: "web_search",
+                  query: (data.query as string) ?? "",
+                  result_count:
+                    typeof data.result_count === "number"
+                      ? (data.result_count as number)
+                      : results.length,
+                  results,
+                  suggestions: parseWebSearchSuggestions(data.suggestions),
+                  reason:
+                    typeof data.reason === "string"
+                      ? (data.reason as WebSearchFailureReason)
+                      : undefined,
+                  isStreaming: false,
+                }),
+              );
+              pushThinkingPlaceholder();
+              continue;
+            }
+
+            if (data.type === "read_page_start") {
+              pushEvent({
+                type: "read_page",
+                url: (data.url as string) ?? "",
+                domain: typeof data.domain === "string" ? data.domain : "",
+                char_count: 0,
+                isStreaming: true,
+              });
+              continue;
+            }
+
+            if (data.type === "read_page") {
+              updateMatchingEvent(
+                (e) =>
+                  e.type === "read_page" &&
+                  e.url === (data.url as string) &&
+                  !!e.isStreaming,
+                () => ({
+                  type: "read_page",
+                  url: (data.url as string) ?? "",
+                  domain: typeof data.domain === "string" ? data.domain : "",
+                  title:
+                    typeof data.title === "string"
+                      ? (data.title as string)
+                      : undefined,
+                  kind:
+                    data.kind === "pdf"
+                      ? "pdf"
+                      : data.kind === "html"
+                        ? "html"
+                        : undefined,
+                  char_count:
+                    typeof data.char_count === "number"
+                      ? (data.char_count as number)
+                      : 0,
+                  reason:
+                    typeof data.reason === "string"
+                      ? (data.reason as ReadPageFailureReason)
                       : undefined,
                   isStreaming: false,
                 }),

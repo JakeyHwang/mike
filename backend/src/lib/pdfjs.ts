@@ -32,6 +32,11 @@ export interface PdfjsLib {
   getDocument(opts: {
     data: Uint8Array;
     standardFontDataUrl?: string;
+    /**
+     * Disable pdfjs' `eval`-based font/expression compilation. Untrusted
+     * documents fetched from the public web are parsed with this off.
+     */
+    isEvalSupported?: boolean;
   }): PdfDocumentTask;
 }
 

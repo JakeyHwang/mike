@@ -27,6 +27,7 @@ export default function FeaturesPage() {
     const courtListenerEnabled =
         optimisticLegalResearchUs ?? persistedLegalResearchUs;
     const quickActionsVisible = profile?.quickActionsVisible ?? true;
+    const webSearchActive = profile?.webSearchStatus === "active";
 
     const setQuickActionsVisible = async (visible: boolean) => {
         setQuickActionsError(null);
@@ -81,6 +82,16 @@ export default function FeaturesPage() {
                                 void setQuickActionsVisible(checked);
                             }}
                         />
+                    </div>
+                    <div className="space-y-1 border-t border-gray-100 px-4 py-5">
+                        <p className="text-sm font-medium text-gray-700">
+                            Web search
+                        </p>
+                        <p className="text-sm text-gray-500">
+                            {webSearchActive
+                                ? "Active — configured during installation."
+                                : "Not configured — ask whoever installed Mike to add the key."}
+                        </p>
                     </div>
                 </SettingsSection>
             </section>

@@ -49,6 +49,7 @@ async function runStreamWithModel(
         write: vi.fn(),
         model,
         apiKeys: apiKeys as never,
+        jurisdiction: null,
     });
 }
 

@@ -49,6 +49,12 @@ import {
   type TurnReadState,
 } from "./tools/documentOps";
 import { verifyCitations } from "./verifyCitations";
+import {
+  WEB_SEARCH_TOOLS,
+  isWebSearchEnabled,
+  type WebSearchToolEvent,
+} from "./tools/webSearchTools";
+import type { WebSearchTurnState } from "../webSearch/types";
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string }
@@ -107,6 +113,7 @@ export type AssistantEvent =
   | CaseCitationEvent
   | CourtlistenerToolEvent
   | McpToolEvent
+  | WebSearchToolEvent
   | {
       type: "case_opinions";
       cluster_id: number;
@@ -268,6 +275,13 @@ export async function runLLMStream(params: {
    *  here so that the same nonce fences both the system-prompt filenames
    *  (added by buildMessages) and the document bodies returned by tools. */
   nonce?: string;
+  /**
+   * The user's `user_profiles.jurisdiction` display name (e.g. "Singapore"),
+   * or null when they never chose one. Selects the web-search jurisdiction
+   * profile: the enrichment cue, the system instruction and the authority
+   * tiers all follow from it.
+   */
+  jurisdiction: string | null;
 }): Promise<{
   fullText: string;
   events: AssistantEvent[];
@@ -293,15 +307,24 @@ export async function runLLMStream(params: {
     signal,
     projectId,
     nonce,
+    jurisdiction,
   } = params;
   const write = (chunk: string) =>
     unsafeWrite(sanitizeAssistantSseChunk(chunk));
   const researchTools = includeResearchTools ? COURTLISTENER_TOOLS : [];
+  // No per-caller flag: the key is provisioned once at install time, so web
+  // search is either available to every chat on this install or to none.
+  const webTools = isWebSearchEnabled() ? WEB_SEARCH_TOOLS : [];
   const mcpTools = await buildUserMcpTools(userId, db);
   const conversationTools = includeAskInputs
     ? TOOLS
     : TOOLS.filter((tool) => tool.function.name !== "ask_inputs");
-  const baseTools = [...conversationTools, ...researchTools, ...WORKFLOW_TOOLS];
+  const baseTools = [
+    ...conversationTools,
+    ...researchTools,
+    ...webTools,
+    ...WORKFLOW_TOOLS,
+  ];
   const advertisedTools = [
     ...baseTools,
     ...mcpTools,
@@ -342,6 +365,19 @@ export async function runLLMStream(params: {
   const courtlistenerTurnState: CourtlistenerTurnState = {
     casesByClusterId: new Map(),
   };
+  // One web-search budget per assistant turn: the call/byte counters are the
+  // guard, the two caches make a repeated query or URL free, and `results`
+  // accumulates every source the model was shown so a `web_id` in the
+  // <CITATIONS> block can be resolved to a real URL.
+  const webSearchTurnState: WebSearchTurnState = {
+    jurisdiction,
+    searchCalls: 0,
+    readCalls: 0,
+    bytesRead: 0,
+    queryCache: new Map(),
+    pageCache: new Map(),
+    results: new Map(),
+  };
   let fullText = "";
   let iterText = "";
   let iterVisibleText = "";
@@ -367,14 +403,17 @@ export async function runLLMStream(params: {
     const partial = parsePartialCitationObjects(streamingCitationsBuffer);
     if (partial.length <= streamedCitationCount) return;
     streamedCitationCount = partial.length;
-    const citations = partial.map((c) =>
-      createCitation(
-        c,
-        docIndex,
-        courtlistenerTurnState.casesByClusterId,
-        docStore,
-      ),
-    );
+    const citations = partial
+      .map((c) =>
+        createCitation(
+          c,
+          docIndex,
+          courtlistenerTurnState.casesByClusterId,
+          docStore,
+          webSearchTurnState.results,
+        ),
+      )
+      .filter((c) => c !== null);
     emitCitationStreamSnapshot("partial", citations);
   };
 
@@ -580,6 +619,7 @@ export async function runLLMStream(params: {
           courtlistenerEvents,
           caseCitationEvents,
           mcpEvents,
+          webSearchEvents,
         } = await runToolCalls(
           toolCalls,
           docStore,
@@ -595,6 +635,7 @@ export async function runLLMStream(params: {
           courtlistenerTurnState,
           apiKeys,
           nonce,
+          webSearchTurnState,
         );
         throwIfAborted(signal);
         for (const r of docsRead) {
@@ -658,6 +699,9 @@ export async function runLLMStream(params: {
           events.push(askInputsEvent);
         }
         for (const event of courtlistenerEvents) {
+          events.push(event);
+        }
+        for (const event of webSearchEvents) {
           events.push(event);
         }
         for (const event of mcpEvents) {
@@ -736,14 +780,19 @@ export async function runLLMStream(params: {
     // Custom builders (tabular) bypass document-citation verification.
     citations = buildCitations(fullText);
   } else {
-    const rawCitations = parsedCitations.map((c) =>
-      createCitation(
-        c,
-        docIndex,
-        courtlistenerTurnState.casesByClusterId,
-        docStore,
-      ),
-    );
+    // A web citation naming an id this turn never returned resolves to
+    // nothing and is dropped rather than shown as an unlinked source.
+    const rawCitations = parsedCitations
+      .map((c) =>
+        createCitation(
+          c,
+          docIndex,
+          courtlistenerTurnState.casesByClusterId,
+          docStore,
+          webSearchTurnState.results,
+        ),
+      )
+      .filter((c) => c !== null);
     // Server-side quote verification. Fetch each document's extracted source
     // text at most once per turn (memoized by doc_id), reading only bytes
     // already in storage with emitEvents:false. Case citations are matched

@@ -7,11 +7,19 @@ import type {
     Citation,
     EditAnnotation,
     PanelDocument,
+    WebSearchSuggestion,
 } from "../shared/types";
 import { EditCard } from "./EditCard";
 import { PreResponseWrapper } from "./PreResponseWrapper";
 import { ResponseStatus, type StatusState } from "./message/ResponseStatus";
-import { eventErrorMessage, toolCallLabel } from "./message/eventUtils";
+import {
+    READ_PAGE_FAILURE_COPY,
+    WEB_SEARCH_FAILURE_DETAIL,
+    WEB_TIER_RANK,
+    eventErrorMessage,
+    formatReadPageTarget,
+    toolCallLabel,
+} from "./message/eventUtils";
 import { preprocessCitations, internalCaseHref } from "./message/citationUtils";
 import { useSmoothedReveal } from "./message/useSmoothedReveal";
 import { MarkdownContent } from "./message/MarkdownContent";
@@ -29,7 +37,9 @@ import {
     EventBlock,
     ReasoningBlock,
     WorkflowAppliedBlock,
+    WebSearchBlock,
     type CourtListenerBlockItem,
+    type WebSearchBlockItem,
 } from "./message/EventBlocks";
 
 interface Props {
@@ -150,6 +160,25 @@ export function AssistantMessage({
         onEditResolved?.(args);
     };
 
+    // Google's related searches are rendered exactly once per turn: in the
+    // Citations card when the answer cites a web source, otherwise inside the
+    // expanded web search step row.
+    const hasWebCitations = citations.some(
+        (citation) => citation.kind === "web",
+    );
+    const webSuggestions: WebSearchSuggestion[] = [];
+    const seenSuggestionUrls = new Set<string>();
+    for (const candidate of events ?? []) {
+        if (candidate.type !== "web_search" || candidate.isStreaming) continue;
+        for (const suggestion of candidate.suggestions ?? []) {
+            if (!suggestion?.url || seenSuggestionUrls.has(suggestion.url)) {
+                continue;
+            }
+            seenSuggestionUrls.add(suggestion.url);
+            webSuggestions.push(suggestion);
+        }
+    }
+
     const eventErrorMessages = (events ?? [])
         .map(eventErrorMessage)
         .filter((message): message is string => !!message);
@@ -243,6 +272,11 @@ export function AssistantMessage({
         }
     }
     const handleOpenCitationSource = (citation: Citation) => {
+        // Web sources have no panel document: the row opens the page itself.
+        if (citation.kind === "web") {
+            window.open(citation.url, "_blank", "noopener,noreferrer");
+            return;
+        }
         if (onOpenCitationSource) {
             onOpenCitationSource(citation);
             return;
@@ -256,6 +290,7 @@ export function AssistantMessage({
         });
     };
     const canOpenCitationSource = (citation: Citation) =>
+        citation.kind === "web" ||
         !!onOpenCitationSource ||
         (citation.kind !== "case" && !!onOpenDocument);
     const showCitationBlock =
@@ -420,7 +455,10 @@ export function AssistantMessage({
         }
         if (event.type === "doc_read") {
             const ann = citations.find(
-                (a) => a.kind !== "case" && a.filename === event.filename,
+                (a) =>
+                    a.kind !== "case" &&
+                    a.kind !== "web" &&
+                    a.filename === event.filename,
             );
             return (
                 <DocReadBlock
@@ -794,6 +832,68 @@ export function AssistantMessage({
                 />
             );
         }
+        if (event.type === "web_search") {
+            const count = event.result_count ?? event.results.length;
+            const queryLabel = event.query ? ` for "${event.query}"` : "";
+            const items: WebSearchBlockItem[] = [...event.results]
+                .sort(
+                    (a, b) =>
+                        (WEB_TIER_RANK[a.tier] ?? 3) -
+                        (WEB_TIER_RANK[b.tier] ?? 3),
+                )
+                .map((result) => ({
+                    title: result.title,
+                    domain: result.domain,
+                    url: result.url,
+                }));
+            return (
+                <WebSearchBlock
+                    key={globalIdx}
+                    label={
+                        event.isStreaming
+                            ? `Searching the web${queryLabel}`
+                            : event.reason
+                              ? "Web search failed"
+                              : count > 0
+                                ? `Searched the web${queryLabel} — ${count} ${count === 1 ? "source" : "sources"}`
+                                : `Searched the web${queryLabel} — no sources found`
+                    }
+                    detail={event.reason ? WEB_SEARCH_FAILURE_DETAIL : undefined}
+                    isStreaming={!!event.isStreaming}
+                    hasError={!!event.reason}
+                    showConnector={showConnector}
+                    items={items.length > 0 ? items : undefined}
+                    suggestions={
+                        hasWebCitations ? undefined : event.suggestions
+                    }
+                />
+            );
+        }
+        if (event.type === "read_page") {
+            const target = formatReadPageTarget(event.url, event.domain);
+            const domain = event.domain || target;
+            return (
+                <WebSearchBlock
+                    key={globalIdx}
+                    label={
+                        event.isStreaming
+                            ? `Reading ${target}`
+                            : event.reason
+                              ? `Could not read ${domain} (${
+                                    READ_PAGE_FAILURE_COPY[event.reason] ??
+                                    "could not fetch"
+                                })`
+                              : event.title
+                                ? `Read ${domain} — ${event.title}`
+                                : `Read ${target}`
+                    }
+                    rowTitle={event.url}
+                    isStreaming={!!event.isStreaming}
+                    hasError={!!event.reason}
+                    showConnector={showConnector}
+                />
+            );
+        }
         return null;
     };
 
@@ -1104,6 +1204,7 @@ export function AssistantMessage({
                         onOpenSource={handleOpenCitationSource}
                         canOpenSource={canOpenCitationSource}
                         showWhenEmpty={!!citationStatus}
+                        suggestions={webSuggestions}
                         isLoading={
                             citationStatus === "started" ||
                             citationStatus === "partial"

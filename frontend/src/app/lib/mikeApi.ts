@@ -530,6 +530,7 @@ export interface UserProfile {
     lastSelectedReasoningLevel: NonNullable<Message["reasoning"]>;
     mfaOnLogin: boolean;
     legalResearchUs: boolean;
+    webSearchStatus: "active" | "not_configured";
     quickActionsVisible: boolean;
     darkMode: boolean;
     transparentTables: boolean;

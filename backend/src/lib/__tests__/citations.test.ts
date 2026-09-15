@@ -8,6 +8,7 @@ import {
     CITATIONS_CLOSE_TAG,
 } from "../chat/citations";
 import type { DocIndex, DocStore } from "../chat/types";
+import type { WebSearchSource } from "../webSearch/types";
 
 function citationsBlock(json: string) {
     return `Answer text.\n${CITATIONS_OPEN_TAG}\n${json}\n${CITATIONS_CLOSE_TAG}`;
@@ -434,5 +435,69 @@ describe("createCitation", () => {
             pdfUrl: null,
             dateFiled: null,
         });
+    });
+
+    const webSources = new Map<string, WebSearchSource>([
+        [
+            "web_3f9a1c2b4d5e6f70",
+            {
+                id: "web_3f9a1c2b4d5e6f70",
+                title: "Companies Act 1967 — s 157",
+                url: "https://sso.agc.gov.sg/Act/CoA1967?ProvIds=pr157-",
+                domain: "sso.agc.gov.sg",
+                snippet: "A director must act honestly.",
+                snippet_source: "search_summary",
+                tier: "official",
+            },
+        ],
+    ]);
+
+    it("resolves a web_id against the turn's web sources", () => {
+        const [parsed] = parseCitations(
+            citationsBlock(
+                '[{"ref": 3, "web_id": "web_3f9a1c2b4d5e6f70", "quote": "act honestly"}]',
+            ),
+        );
+        expect(
+            createCitation(parsed, docIndex, undefined, undefined, webSources),
+        ).toEqual({
+            type: "citation_data",
+            kind: "web",
+            ref: 3,
+            id: "web_3f9a1c2b4d5e6f70",
+            url: "https://sso.agc.gov.sg/Act/CoA1967?ProvIds=pr157-",
+            title: "Companies Act 1967 — s 157",
+            domain: "sso.agc.gov.sg",
+            snippet: "A director must act honestly.",
+            snippet_source: "search_summary",
+            quote: "act honestly",
+        });
+    });
+
+    it("omits quote when the model cited a web source without reading it", () => {
+        const [parsed] = parseCitations(
+            citationsBlock('[{"ref": 1, "web_id": "web_3f9a1c2b4d5e6f70"}]'),
+        );
+        const citation = createCitation(
+            parsed,
+            docIndex,
+            undefined,
+            undefined,
+            webSources,
+        );
+        expect(citation).toMatchObject({ kind: "web", ref: 1 });
+        expect(citation).not.toHaveProperty("quote");
+    });
+
+    it("drops a web citation whose id was never returned this turn", () => {
+        const [parsed] = parseCitations(
+            citationsBlock('[{"ref": 1, "web_id": "web_invented", "quote": "q"}]'),
+        );
+        expect(
+            createCitation(parsed, docIndex, undefined, undefined, webSources),
+        ).toBeNull();
+        // No map at all — the surfaces that rebuild citations without turn
+        // state must not emit an unresolved web source either.
+        expect(createCitation(parsed, docIndex)).toBeNull();
     });
 });

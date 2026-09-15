@@ -375,12 +375,20 @@ export function extractCitations(
   docIndex: DocIndex,
   docStore?: DocStore,
 ): unknown[] {
-  return parseCitations(fullText).map((c) =>
-    createCitation(c, docIndex, undefined, docStore),
-  );
+  // This path has no turn state, so a web citation has no source to resolve
+  // against and `createCitation` drops it.
+  return parseCitations(fullText)
+    .map((c) => createCitation(c, docIndex, undefined, docStore))
+    .filter((c) => c !== null);
 }
 
 export function stripTransientAssistantEvents(events: AssistantEvent[]) {
+  // `case_opinions` carries a whole fetched case and is replaced on replay by
+  // the model re-reading it, so it is dropped before persistence. Every other
+  // event is history the next turn needs: `web_search` and `read_page` in
+  // particular survive, so a replayed turn still shows what was searched and
+  // which pages were read. The `_start` frames never reach this function —
+  // they are written to the SSE stream and never pushed onto `events`.
   return events.filter((event) => event.type !== "case_opinions");
 }
 

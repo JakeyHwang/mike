@@ -130,7 +130,3 @@ export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 export const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+\-.^_`|~]+$/;
 export const MAX_CUSTOM_HEADERS = 20;
 export const MAX_CUSTOM_HEADER_VALUE_LENGTH = 4096;
-export const BLOCKED_METADATA_HOSTS = new Set([
-    "metadata.google.internal",
-    "instance-data",
-]);

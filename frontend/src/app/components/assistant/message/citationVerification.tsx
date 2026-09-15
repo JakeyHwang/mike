@@ -1,5 +1,9 @@
 import { CircleAlert } from "lucide-react";
-import type { Citation, DocumentCitationQuote } from "../../shared/types";
+import type {
+  Citation,
+  DocumentCitationQuote,
+  WebCitation,
+} from "../../shared/types";
 import { PillButton } from "../../ui/pill-button";
 import {
   Popover,
@@ -7,7 +11,15 @@ import {
   PopoverTrigger,
 } from "../../ui/popover";
 
-export type CitationVerificationDisplayState = "verified" | "unverified";
+/**
+ * `web` is not a verification outcome: web sources are never matched against a
+ * source text, so they render the neutral pill and say where the snippet came
+ * from instead of claiming a verification result.
+ */
+export type CitationVerificationDisplayState =
+  | "verified"
+  | "unverified"
+  | "web";
 
 type VerificationPresentation = {
   label: string;
@@ -22,15 +34,22 @@ const UNVERIFIED_PRESENTATION: VerificationPresentation = {
     "!bg-red-100/85 !text-red-800 hover:!bg-red-200/80 hover:!text-red-800 dark:!bg-red-950 dark:!text-white dark:hover:!bg-red-900 dark:hover:!text-white",
 };
 
+const WEB_SNIPPET_ORIGIN: Record<WebCitation["snippet_source"], string> = {
+  search_summary: "from search summary",
+  citation: "direct citation",
+};
+
 export function citationVerificationState(
   citation: Citation,
 ): CitationVerificationDisplayState {
+  if (citation.kind === "web") return "web";
   return citation.verified === false ? "unverified" : "verified";
 }
 
+/** Quotes are only ever verified or not — `web` is a citation-level state. */
 export function quoteVerificationState(
   quote: Pick<DocumentCitationQuote, "verification">,
-): CitationVerificationDisplayState {
+): Exclude<CitationVerificationDisplayState, "web"> {
   return quote.verification?.verified === false ? "unverified" : "verified";
 }
 
@@ -48,6 +67,11 @@ export function citationVerificationDescription(
 }
 
 export function citationVerificationAriaLabel(citation: Citation): string {
+  if (citation.kind === "web") {
+    return `Web source ${citation.ref} — ${
+      WEB_SNIPPET_ORIGIN[citation.snippet_source]
+    }`;
+  }
   const state = citationVerificationState(citation);
   const suffix =
     state === "unverified" ? `. ${UNVERIFIED_PRESENTATION.label}` : "";

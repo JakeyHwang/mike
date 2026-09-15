@@ -22,6 +22,7 @@ const { streamChatWithTools, runToolCalls } = vi.hoisted(() => ({
     courtlistenerEvents: [],
     caseCitationEvents: [],
     mcpEvents: [],
+    webSearchEvents: [],
   })),
 }));
 
@@ -56,6 +57,7 @@ function baseParams() {
     db: {} as never,
     write: vi.fn(),
     extraTools: PROJECT_EXTRA_TOOLS,
+    jurisdiction: null,
   };
 }
 

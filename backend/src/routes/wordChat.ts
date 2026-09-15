@@ -1148,6 +1148,7 @@ wordChatRouter.post("/", requireAuth, async (req, res) => {
       apiKeys,
       signal: stream.signal,
       nonce,
+      jurisdiction: personalisation?.jurisdiction ?? null,
       emitDone: false,
     });
     const persistedEvents = await normalizeAssistantEvents(

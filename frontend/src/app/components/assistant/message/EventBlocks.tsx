@@ -4,7 +4,10 @@ import remarkGfm from "remark-gfm";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
 import { API_BASE } from "@/app/lib/mikeApi";
 import { authenticatedFetch } from "@/app/lib/authEvents";
-import type { AssistantEvent } from "../../shared/types";
+import type {
+    AssistantEvent,
+    WebSearchSuggestion,
+} from "../../shared/types";
 import { FileTypeIcon } from "../../shared/FileTypeIcon";
 import {
     DocEditBlockUI,
@@ -702,6 +705,108 @@ export function CourtListenerBlock({
                             </li>
                         );
                     })}
+                </ul>
+            )}
+        </EventBlock>
+    );
+}
+
+export type WebSearchBlockItem = {
+    title: string;
+    domain: string;
+    url: string;
+};
+
+export function WebSearchBlock({
+    label,
+    detail,
+    rowTitle,
+    isStreaming,
+    hasError,
+    showConnector,
+    items,
+    suggestions,
+}: {
+    label: string;
+    detail?: string;
+    /** Full URL, so a row that truncates a path still shows the whole one. */
+    rowTitle?: string;
+    isStreaming?: boolean;
+    hasError?: boolean;
+    showConnector?: boolean;
+    items?: WebSearchBlockItem[];
+    /**
+     * Google's related searches. Passed only when the answer carries no web
+     * citation — otherwise the Citations card renders them instead.
+     */
+    suggestions?: WebSearchSuggestion[];
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const hasItems = !!items && items.length > 0;
+    const hasSuggestions = !!suggestions && suggestions.length > 0;
+    const canExpand = hasItems || hasSuggestions;
+    return (
+        <EventBlock
+            showConnector={showConnector}
+            isStreaming={isStreaming}
+            dotColor={hasError ? "red" : "green"}
+        >
+            {canExpand ? (
+                <button
+                    onClick={() => setIsOpen((v) => !v)}
+                    title={rowTitle}
+                    className="text-left hover:text-gray-700 transition-colors inline-flex items-center"
+                >
+                    <span className="font-medium">{label}</span>
+                    {detail ? <span>&nbsp;{detail}</span> : null}
+                    {isStreaming ? <span>...</span> : null}
+                    <ChevronDown
+                        size={10}
+                        className={`relative top-px ml-1 transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`}
+                    />
+                </button>
+            ) : (
+                <span title={rowTitle}>
+                    <span className="font-medium">{label}</span>
+                    {detail ? <span> {detail}</span> : null}
+                    {isStreaming ? <span>...</span> : null}
+                </span>
+            )}
+            {isOpen && canExpand && (
+                <ul className="mt-2 flex flex-col gap-1 text-sm font-serif text-gray-500">
+                    {items?.map((item, idx) => (
+                        <li key={idx}>
+                            <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={item.url}
+                                className="hover:text-gray-700 hover:underline underline-offset-2"
+                            >
+                                {item.title
+                                    ? `${item.title} — ${item.domain}`
+                                    : item.domain}
+                            </a>
+                        </li>
+                    ))}
+                    {hasSuggestions && (
+                        <li>
+                            <span>Related Google searches:</span>{" "}
+                            {suggestions!.map((suggestion, idx) => (
+                                <span key={idx}>
+                                    {idx > 0 ? <span>&nbsp;· </span> : null}
+                                    <a
+                                        href={suggestion.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="hover:text-gray-700 hover:underline underline-offset-2"
+                                    >
+                                        {suggestion.label}
+                                    </a>
+                                </span>
+                            ))}
+                        </li>
+                    )}
                 </ul>
             )}
         </EventBlock>

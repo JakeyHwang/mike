@@ -1,0 +1,77 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "The prevailing GST rate in Singapore is 9%, with effect from 1 January 2024. Buyer's Stamp Duty is charged on a tiered scale."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "groundingMetadata": {
+        "searchEntryPoint": {
+          "renderedContent": "<style>.container{background:#fff}.chip{display:inline-block}</style><div class=\"container\"><div class=\"headline\"><span class=\"headline-label\">Google Search Suggestions</span></div><div class=\"carousel\"><a class=\"chip\" href=\"https://www.google.com/search?q=current+GST+rate+Singapore&amp;client=app\">current GST rate <b>Singapore</b></a><a class=\"chip\" href=\"https://www.google.com/search?q=IRAS+buyer%27s+stamp+duty+rates\">IRAS buyer&#39;s stamp duty rates</a><a class=\"chip\" href=\"https://www.google.com/search?q=current+GST+rate+Singapore&amp;client=app\">current GST rate Singapore</a></div></div>"
+        },
+        "groundingChunks": [
+          {
+            "web": {
+              "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG1iras",
+              "title": "iras.gov.sg"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHmof",
+              "title": "mof.gov.sg"
+            }
+          },
+          {
+            "web": {
+              "title": "chunk with no uri is skipped"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQJblog"
+            }
+          }
+        ],
+        "groundingSupports": [
+          {
+            "segment": {
+              "startIndex": 0,
+              "endIndex": 76,
+              "text": "The prevailing GST rate in Singapore is 9%, with effect from 1 January 2024."
+            },
+            "groundingChunkIndices": [0, 1]
+          },
+          {
+            "segment": {
+              "startIndex": 77,
+              "endIndex": 126,
+              "text": "Buyer's Stamp Duty is charged on a tiered scale."
+            },
+            "groundingChunkIndices": [0]
+          },
+          {
+            "segment": {
+              "startIndex": 126,
+              "endIndex": 140,
+              "text": "A support with no chunk indices is skipped."
+            },
+            "groundingChunkIndices": []
+          }
+        ],
+        "webSearchQueries": ["current GST rate Singapore"]
+      }
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 412,
+    "candidatesTokenCount": 96,
+    "totalTokenCount": 508
+  },
+  "modelVersion": "gemini-3.5-flash"
+}

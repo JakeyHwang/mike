@@ -8,6 +8,7 @@ import type {
     OAuthClientMetadata,
     OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
+import { guardedFetch, validateGuardedUrl } from "../http/guardedFetch";
 import { createServerSupabase } from "../supabase";
 import {
     authConfigPatch,
@@ -15,10 +16,8 @@ import {
     decryptAuthConfig,
     decryptString,
     encryptString,
-    guardedFetch,
     loadConnector,
     stateHash,
-    validateRemoteMcpUrl,
 } from "./client";
 import {
     CLIENT_INFO,
@@ -643,10 +642,9 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
     }
 
     async validateResourceURL(serverUrl: string | URL, resource?: string) {
-        await validateRemoteMcpUrl(String(serverUrl));
+        await validateGuardedUrl(String(serverUrl));
         if (!resource) return undefined;
-        await validateRemoteMcpUrl(resource);
-        return new URL(resource);
+        return validateGuardedUrl(resource);
     }
 
     async invalidateCredentials(

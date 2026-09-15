@@ -54,6 +54,8 @@ interface UserProfile {
     lastSelectedReasoningLevel: NonNullable<Message["reasoning"]>;
     mfaOnLogin: boolean;
     legalResearchUs: boolean;
+    /** Install-wide: the grounding key is provisioned by the installer. */
+    webSearchStatus: "active" | "not_configured";
     quickActionsVisible: boolean;
     openRouterModels: string[];
     vercelModels: string[];
@@ -164,6 +166,8 @@ function toProfile(data: ApiUserProfile): UserProfile {
         lastSelectedReasoningLevel:
             profile.lastSelectedReasoningLevel ?? "high",
         mfaOnLogin: profile.mfaOnLogin === true,
+        webSearchStatus:
+            profile.webSearchStatus === "active" ? "active" : "not_configured",
         transparentTables: profile.transparentTables !== false,
         openRouterModels: Array.isArray(profile.openRouterModels)
             ? profile.openRouterModels
@@ -229,6 +233,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 lastSelectedReasoningLevel: "high",
                 mfaOnLogin: false,
                 legalResearchUs: true,
+                webSearchStatus: "not_configured",
                 quickActionsVisible: true,
                 openRouterModels: [],
                 vercelModels: [],

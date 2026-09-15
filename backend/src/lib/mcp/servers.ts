@@ -1,11 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { guardedFetch, validateGuardedUrl } from "../http/guardedFetch";
 import type { OpenAIToolSchema } from "../llm";
 import { createServerSupabase } from "../supabase";
 import {
     authConfigPatch,
     decryptAuthConfig,
-    guardedFetch,
     headersForAuth,
     loadConnector,
     mcpOAuthCallbackUrl,
@@ -14,7 +14,6 @@ import {
     toConnectorSummary,
     toolRequiresConfirmation,
     validateCustomHeaders,
-    validateRemoteMcpUrl,
 } from "./client";
 import {
     completeMcpConnectorOAuthAuthorization,
@@ -37,14 +36,14 @@ import {
     type ToolCacheRow,
 } from "./types";
 
-export { startUserMcpConnectorOAuth, validateRemoteMcpUrl };
+export { startUserMcpConnectorOAuth };
 
 async function withMcpClient<T>(
     connector: ConnectorRow,
     callback: (client: Client) => Promise<T>,
     db: Db = createServerSupabase(),
 ): Promise<T> {
-    await validateRemoteMcpUrl(connector.server_url);
+    await validateGuardedUrl(connector.server_url);
     const authConfig = decryptAuthConfig(connector);
     const authProvider =
         connector.auth_type === "oauth"
@@ -213,7 +212,7 @@ export async function createUserMcpConnector(
 ): Promise<McpConnectorSummary> {
     const name = input.name.trim().slice(0, 80);
     if (!name) throw new Error("Connector name is required.");
-    const serverUrl = await validateRemoteMcpUrl(input.serverUrl.trim());
+    const serverUrl = String(await validateGuardedUrl(input.serverUrl.trim()));
     const headers = validateCustomHeaders(input.headers);
     const auth = authConfigPatch({
         ...(input.bearerToken?.trim()
@@ -260,7 +259,9 @@ export async function updateUserMcpConnector(
         update.name = name;
     }
     if (typeof input.serverUrl === "string") {
-        update.server_url = await validateRemoteMcpUrl(input.serverUrl.trim());
+        update.server_url = String(
+            await validateGuardedUrl(input.serverUrl.trim()),
+        );
     }
     if (typeof input.enabled === "boolean") {
         update.enabled = input.enabled;

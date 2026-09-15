@@ -282,6 +282,11 @@ export function ChatView({
      */
     const openCitation = useCallback(
         async (citation: Citation, options?: { showQuotes?: boolean }) => {
+            // Web sources have no panel document; open the page itself.
+            if (citation.kind === "web") {
+                window.open(citation.url, "_blank", "noopener,noreferrer");
+                return;
+            }
             const showQuotes = options?.showQuotes ?? true;
             const document = await resolvePanelDocumentVersion(
                 panelDocumentFromCitation(citation, showQuotes),

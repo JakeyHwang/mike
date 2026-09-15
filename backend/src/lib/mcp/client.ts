@@ -1,11 +1,6 @@
 import crypto from "crypto";
-import dns from "dns/promises";
-import net from "net";
-import { Agent } from "undici";
-import { isBlockedIp } from "../privateIp";
 import { configuredApiPublicUrl } from "../runtimeConfig";
 import {
-    BLOCKED_METADATA_HOSTS,
     HEADER_NAME_RE,
     MAX_CUSTOM_HEADER_VALUE_LENGTH,
     MAX_CUSTOM_HEADERS,
@@ -227,51 +222,6 @@ export function toConnectorSummary(
     };
 }
 
-// Private/reserved IP classification lives in lib/privateIp.ts so every
-// guarded egress check reuses the exact same ranges.
-
-export async function validateRemoteMcpUrl(rawUrl: string): Promise<string> {
-    let url: URL;
-    try {
-        url = new URL(rawUrl);
-    } catch {
-        throw new Error("MCP server URL must be a valid URL.");
-    }
-    if (url.protocol !== "https:") {
-        throw new Error("MCP server URL must use HTTPS.");
-    }
-    url.username = "";
-    url.password = "";
-    url.hash = "";
-
-    const hostname = url.hostname.toLowerCase();
-    if (
-        hostname === "localhost" ||
-        hostname.endsWith(".localhost") ||
-        BLOCKED_METADATA_HOSTS.has(hostname)
-    ) {
-        throw new Error("MCP server URL points to a blocked host.");
-    }
-
-    // URL.hostname wraps IPv6 literals in brackets ("[::1]"), which net.isIP
-    // does not recognize. Strip them so an IPv6 literal is classified by the
-    // private-IP guard rather than falling through to a DNS lookup that would
-    // treat the bracketed form as an (unresolvable) hostname.
-    const literalHost =
-        hostname.startsWith("[") && hostname.endsWith("]")
-            ? hostname.slice(1, -1)
-            : hostname;
-    const literalFamily = net.isIP(literalHost);
-    const addresses = literalFamily
-        ? [{ address: literalHost }]
-        : await dns.lookup(hostname, { all: true, verbatim: true });
-    if (!addresses.length || addresses.some(({ address }) => isBlockedIp(address))) {
-        throw new Error("MCP server URL resolves to a blocked network address.");
-    }
-
-    return url.toString();
-}
-
 export function headersForAuth(config: McpConnectorAuthConfig) {
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(config.headers ?? {})) {
@@ -329,66 +279,6 @@ export function authConfigPatch(config: McpConnectorAuthConfig): Record<string, 
         ...(hasBearer ? { bearerToken: config.bearerToken?.trim() } : {}),
         ...(hasHeaders ? { headers: config.headers } : {}),
     });
-}
-
-// A shared undici dispatcher whose DNS lookup runs the private-IP guard at the
-// moment a socket is opened and returns ONLY validated addresses. Because
-// undici connects to exactly what this lookup yields, the address we validate is
-// the address we connect to — there is no second, unguarded resolution for an
-// attacker to race (DNS-rebinding / TOCTOU). Reusing the dispatcher also lets
-// undici pool validated HTTPS connections instead of leaving a new Agent and
-// keep-alive socket behind for every MCP request.
-const guardedAgent = new Agent({
-    connect: {
-        lookup: (hostname, _options, callback) => {
-            dns.lookup(hostname, { all: true, verbatim: true })
-                .then((addresses) => {
-                    if (
-                        !addresses.length ||
-                        addresses.some(({ address }) => isBlockedIp(address))
-                    ) {
-                        callback(
-                            new Error(
-                                "MCP server URL resolves to a blocked network address.",
-                            ),
-                            [],
-                        );
-                        return;
-                    }
-                    callback(null, addresses);
-                })
-                .catch((err: unknown) =>
-                    callback(
-                        err instanceof Error ? err : new Error(String(err)),
-                        [],
-                    ),
-                );
-        },
-    },
-});
-
-// The single guarded egress helper for every outbound MCP request (connector
-// transport, OAuth discovery/registration/refresh). It rejects non-HTTPS,
-// credentialed, metadata-host and private-IP-literal URLs up front, pins the
-// connection to a connect-time-validated address, and refuses to auto-follow
-// redirects (`redirect: "manual"`) so a 3xx to an internal host cannot smuggle
-// egress past the guard.
-export async function guardedFetch(
-    input: Parameters<typeof fetch>[0],
-    init?: Parameters<typeof fetch>[1],
-) {
-    const url =
-        typeof input === "string"
-            ? input
-            : input instanceof URL
-              ? input.toString()
-              : input.url;
-    await validateRemoteMcpUrl(url);
-    return fetch(input, {
-        ...init,
-        redirect: "manual",
-        dispatcher: guardedAgent,
-    } as RequestInit);
 }
 
 export function base64Url(buffer: Buffer) {

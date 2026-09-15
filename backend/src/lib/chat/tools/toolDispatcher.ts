@@ -70,6 +70,34 @@ import {
   upsertCourtlistenerCases,
   type CourtlistenerTurnState,
 } from "./courtlistenerTurnState";
+import { webSearch } from "../../webSearch";
+import { readPage } from "../../webSearch/readPage";
+import type {
+  ReadPageResult,
+  WebSearchResult,
+  WebSearchTurnState,
+} from "../../webSearch/types";
+import {
+  WEB_SEARCH_TOOL_NAMES,
+  isWebSearchEnabled,
+  type WebSearchToolEvent,
+} from "./webSearchTools";
+
+// Per-assistant-turn web budget. `read_page` is an authenticated outbound
+// request attributed to the install's IP, so both the call count and the
+// bytes it may pull are bounded; a repeated query or URL is served from the
+// turn caches and spends nothing.
+const MAX_WEB_SEARCH_CALLS = 6;
+const MAX_READ_PAGE_CALLS = 8;
+const MAX_READ_PAGE_BYTES = 12 * 1024 * 1024;
+
+function webPageDomain(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
 
 function sourceMaterialNotice(
   sourceKind: "document" | "library_template" | "workflow_asset" | undefined,
@@ -270,6 +298,7 @@ export async function runToolCalls(
   courtlistenerState?: CourtlistenerTurnState,
   apiKeys?: import("../../llm").UserApiKeys,
   nonce?: string,
+  webSearchState?: WebSearchTurnState,
 ): Promise<{
   toolResults: unknown[];
   docsRead: {
@@ -294,6 +323,7 @@ export async function runToolCalls(
   courtlistenerEvents: CourtlistenerToolEvent[];
   caseCitationEvents: CaseCitationEvent[];
   mcpEvents: McpToolEvent[];
+  webSearchEvents: WebSearchToolEvent[];
 }> {
   const toolResults: unknown[] = [];
   const docsRead: {
@@ -318,8 +348,20 @@ export async function runToolCalls(
   const courtlistenerEvents: CourtlistenerToolEvent[] = [];
   const caseCitationEvents: CaseCitationEvent[] = [];
   const mcpEvents: McpToolEvent[] = [];
+  const webSearchEvents: WebSearchToolEvent[] = [];
   const courtState: CourtlistenerTurnState = courtlistenerState ?? {
     casesByClusterId: new Map(),
+  };
+  // A caller that never built turn state still gets a bounded budget, so a
+  // direct dispatcher call cannot make unlimited outbound requests.
+  const webState: WebSearchTurnState = webSearchState ?? {
+    jurisdiction: null,
+    searchCalls: 0,
+    readCalls: 0,
+    bytesRead: 0,
+    queryCache: new Map(),
+    pageCache: new Map(),
+    results: new Map(),
   };
   const groupedFindInCaseSearches = toolCalls
     .filter((tc) => tc.function.name === COURTLISTENER_TOOL_NAMES.findInCase)
@@ -1333,6 +1375,209 @@ export async function runToolCalls(
           }),
         });
       }
+    } else if (tc.function.name === WEB_SEARCH_TOOL_NAMES.search) {
+      const query = typeof args.query === "string" ? args.query.trim() : "";
+      write(`data: ${JSON.stringify({ type: "web_search_start", query })}\n\n`);
+      // Normalised so "GST rate" and "  gst   rate " are one search.
+      const queryKey = query.toLowerCase().replace(/\s+/g, " ");
+      const cachedSearch = webState.queryCache.get(queryKey);
+      // The second half of the enablement gate: an unadvertised tool can
+      // still be named from memory, so the branch refuses it outright.
+      const searchRefusal = !isWebSearchEnabled()
+        ? "unavailable"
+        : !cachedSearch && webState.searchCalls >= MAX_WEB_SEARCH_CALLS
+          ? "turn_limit"
+          : null;
+      if (searchRefusal) {
+        const event: WebSearchToolEvent = {
+          type: "web_search",
+          query,
+          result_count: 0,
+          results: [],
+          suggestions: [],
+          reason: searchRefusal,
+        };
+        write(`data: ${JSON.stringify(event)}\n\n`);
+        webSearchEvents.push(event);
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({
+            success: false,
+            reason: searchRefusal,
+            results: [],
+          }),
+        });
+        continue;
+      }
+      let searchResult: WebSearchResult;
+      if (cachedSearch) {
+        searchResult = cachedSearch;
+      } else {
+        webState.searchCalls += 1;
+        try {
+          searchResult = await webSearch(query, {
+            jurisdiction: webState.jurisdiction,
+          });
+        } catch (err) {
+          // A library fault must not end the assistant turn: the model is
+          // told the web was not searched and answers from knowledge.
+          console.error("[web_search] search failed", err);
+          searchResult = {
+            success: false,
+            reason: "unavailable",
+            results: [],
+            suggestions: [],
+            jurisdiction: "general",
+          };
+        }
+        webState.queryCache.set(queryKey, searchResult);
+      }
+      // Every source the model is shown is retained for the whole turn so a
+      // `web_id` in the <CITATIONS> block resolves to a real URL.
+      for (const source of searchResult.results) {
+        webState.results.set(source.id, source);
+      }
+      const searchEvent: WebSearchToolEvent = {
+        type: "web_search",
+        query,
+        result_count: searchResult.success ? searchResult.result_count : 0,
+        results: searchResult.results.map((source) => ({
+          id: source.id,
+          title: source.title,
+          url: source.url,
+          domain: source.domain,
+          tier: source.tier,
+        })),
+        suggestions: searchResult.suggestions,
+        ...(searchResult.success ? {} : { reason: searchResult.reason }),
+      };
+      write(`data: ${JSON.stringify(searchEvent)}\n\n`);
+      webSearchEvents.push(searchEvent);
+      toolResults.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: JSON.stringify(
+          searchResult.success
+            ? {
+                success: true,
+                // Titles and snippets are attacker-controlled web text:
+                // they enter the model's context as fenced data only.
+                results: searchResult.results.map((source) => ({
+                  id: source.id,
+                  title: nonce ? spotlight(source.title, nonce) : source.title,
+                  url: source.url,
+                  domain: source.domain,
+                  snippet: nonce
+                    ? spotlight(source.snippet, nonce)
+                    : source.snippet,
+                  snippet_source: source.snippet_source,
+                  tier: source.tier,
+                })),
+                result_count: searchResult.result_count,
+                dropped_sources: searchResult.dropped_sources,
+                jurisdiction: searchResult.jurisdiction,
+                from_cache: !!cachedSearch || searchResult.from_cache,
+              }
+            : {
+                success: false,
+                reason: searchResult.reason,
+                results: [],
+              },
+        ),
+      });
+    } else if (tc.function.name === WEB_SEARCH_TOOL_NAMES.read) {
+      const url = typeof args.url === "string" ? args.url.trim() : "";
+      const domain = webPageDomain(url);
+      write(
+        `data: ${JSON.stringify({ type: "read_page_start", url, domain })}\n\n`,
+      );
+      const cachedPage = webState.pageCache.get(url);
+      const bytesLeft = MAX_READ_PAGE_BYTES - webState.bytesRead;
+      const readRefusal = !isWebSearchEnabled()
+        ? "unavailable"
+        : !cachedPage &&
+            (webState.readCalls >= MAX_READ_PAGE_CALLS || bytesLeft <= 0)
+          ? "turn_limit"
+          : null;
+      if (readRefusal) {
+        const event: WebSearchToolEvent = {
+          type: "read_page",
+          url,
+          domain,
+          char_count: 0,
+          reason: readRefusal,
+        };
+        write(`data: ${JSON.stringify(event)}\n\n`);
+        webSearchEvents.push(event);
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({
+            success: false,
+            url,
+            reason: readRefusal,
+          }),
+        });
+        continue;
+      }
+      let pageResult: ReadPageResult;
+      if (cachedPage) {
+        pageResult = cachedPage;
+      } else {
+        webState.readCalls += 1;
+        try {
+          pageResult = await readPage(url, { byteBudget: bytesLeft });
+        } catch (err) {
+          console.error("[read_page] fetch failed", err);
+          pageResult = { success: false, url, reason: "fetch_failed" };
+        }
+        webState.pageCache.set(url, pageResult);
+        if (pageResult.success) webState.bytesRead += pageResult.bytes;
+      }
+      const readEvent: WebSearchToolEvent = pageResult.success
+        ? {
+            type: "read_page",
+            url,
+            domain,
+            title: pageResult.title,
+            kind: pageResult.kind,
+            char_count: pageResult.char_count,
+          }
+        : {
+            type: "read_page",
+            url,
+            domain,
+            char_count: 0,
+            reason: pageResult.reason,
+          };
+      write(`data: ${JSON.stringify(readEvent)}\n\n`);
+      webSearchEvents.push(readEvent);
+      toolResults.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: JSON.stringify(
+          pageResult.success
+            ? {
+                success: true,
+                url: pageResult.url,
+                final_url: pageResult.final_url,
+                title: pageResult.title,
+                kind: pageResult.kind,
+                // Page text is data, never instructions.
+                text: nonce
+                  ? spotlight(pageResult.text, nonce)
+                  : pageResult.text,
+                char_count: pageResult.char_count,
+                truncated: pageResult.truncated,
+              }
+            : {
+                success: false,
+                url: pageResult.url,
+                reason: pageResult.reason,
+              },
+        ),
+      });
     } else if (tc.function.name === "edit_document" && docIndex) {
       const rawDocId = args.doc_id as string;
       const editsRaw = args.edits as unknown[] | undefined;
@@ -1994,5 +2239,6 @@ export async function runToolCalls(
     courtlistenerEvents,
     caseCitationEvents,
     mcpEvents,
+    webSearchEvents,
   };
 }

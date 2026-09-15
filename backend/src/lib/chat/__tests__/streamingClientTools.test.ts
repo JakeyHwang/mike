@@ -32,6 +32,7 @@ function baseParams() {
     db: fakeDb(),
     write: vi.fn(),
     model: "gemini-3-flash-preview",
+    jurisdiction: null,
   };
 }
 

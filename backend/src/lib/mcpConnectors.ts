@@ -19,5 +19,4 @@ export {
     setUserMcpToolEnabled,
     startUserMcpConnectorOAuth,
     updateUserMcpConnector,
-    validateRemoteMcpUrl,
 } from "./mcp/servers";

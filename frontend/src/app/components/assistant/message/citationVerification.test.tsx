@@ -1,7 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { Citation, DocumentCitation } from "../../shared/types";
+import type {
+  Citation,
+  DocumentCitation,
+  WebCitation,
+} from "../../shared/types";
 import { CitationQuotesSection } from "../CitationQuotesSection";
 import {
   citationVerificationAriaLabel,
@@ -161,5 +165,36 @@ describe("citation verification presentation", () => {
       "“1,250,000” (Summary, cell B7)",
     );
     expect(screen.getByLabelText("Citation 4")).toHaveTextContent("4");
+  });
+});
+
+describe("web citation presentation", () => {
+  const webCitation: WebCitation = {
+    type: "citation_data",
+    kind: "web",
+    ref: 7,
+    id: "web_3f9a1c2b4d5e6f70",
+    url: "https://www.iras.gov.sg/taxes/goods-services-tax",
+    title: "Current GST rate",
+    domain: "www.iras.gov.sg",
+    snippet: "The GST rate is 9% from 1 January 2024.",
+    snippet_source: "search_summary",
+  };
+
+  it("reports a fourth state instead of a verification outcome", () => {
+    expect(citationVerificationState(webCitation)).toBe("web");
+    expect(citationVerificationPillClassName(webCitation)).toBe("");
+  });
+
+  it("names the snippet origin in the pill label", () => {
+    expect(citationVerificationAriaLabel(webCitation)).toBe(
+      "Web source 7 — from search summary",
+    );
+    expect(
+      citationVerificationAriaLabel({
+        ...webCitation,
+        snippet_source: "citation" as const,
+      }),
+    ).toBe("Web source 7 — direct citation");
   });
 });

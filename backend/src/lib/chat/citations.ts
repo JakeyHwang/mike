@@ -4,6 +4,7 @@ import {
   sourceDocumentType,
   type SourceDocumentQuote,
 } from "../sourceDocuments";
+import type { WebSearchSource } from "../webSearch/types";
 
 // ---------------------------------------------------------------------------
 // Internal citation parse types
@@ -41,7 +42,19 @@ type ParsedCaseCitation = {
   }[];
 };
 
-type ParsedCitation = ParsedDocumentCitation | ParsedCaseCitation;
+type ParsedWebCitation = {
+  kind: "web";
+  ref: number;
+  /** `web_` + sha1 prefix, as returned by web_search in this turn. */
+  web_id: string;
+  /** Present only when the model read the page and quoted it. */
+  quote?: string;
+};
+
+type ParsedCitation =
+  | ParsedDocumentCitation
+  | ParsedCaseCitation
+  | ParsedWebCitation;
 
 function normalizeCitation(raw: unknown): ParsedCitation | null {
   if (!raw || typeof raw !== "object") return null;
@@ -76,6 +89,16 @@ function normalizeCitation(raw: unknown): ParsedCitation | null {
       quotes.push({ opinionId: null, type: null, author: null, quote });
     }
     return { kind: "case", ref, cluster_id: Math.floor(rawClusterId), quotes };
+  }
+
+  const webId = typeof c.web_id === "string" ? c.web_id.trim() : "";
+  if (webId) {
+    return {
+      kind: "web",
+      ref,
+      web_id: webId,
+      ...(typeof quote === "string" && quote ? { quote } : {}),
+    };
   }
 
   if (typeof c.doc_id !== "string") return null;
@@ -275,12 +298,36 @@ type CasesByClusterId = Map<number, {
   dateFiled: string | null;
 }>;
 
+/**
+ * Build the `citation_data` payload for one parsed citation. Returns null
+ * when the citation names a source this turn cannot resolve — today only a
+ * `web_id` the model invented or carried over from an earlier turn, which is
+ * dropped rather than emitted as a citation with no link behind it.
+ */
 export function createCitation(
   citation: ParsedCitation,
   docIndex: DocIndex,
   casesByClusterId?: CasesByClusterId,
   docStore?: DocStore,
+  webSources?: Map<string, WebSearchSource>,
 ) {
+  if (citation.kind === "web") {
+    const source = webSources?.get(citation.web_id);
+    if (!source) return null;
+    return {
+      type: "citation_data",
+      kind: "web",
+      ref: citation.ref,
+      id: source.id,
+      url: source.url,
+      title: source.title,
+      domain: source.domain,
+      snippet: source.snippet,
+      snippet_source: source.snippet_source,
+      ...(citation.quote ? { quote: citation.quote } : {}),
+    };
+  }
+
   if (citation.kind === "case") {
     const caseRecord = casesByClusterId?.get(citation.cluster_id);
     const document = normalizeCaseDocument({

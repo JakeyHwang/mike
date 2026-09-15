@@ -572,6 +572,10 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     };
 
     const handleCitationClick = (citation: Citation) => {
+        if (citation.kind === "web") {
+            window.open(citation.url, "_blank", "noopener,noreferrer");
+            return;
+        }
         if (citation.kind === "case") return;
         openTab(
             citation.document_id,

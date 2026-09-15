@@ -1035,6 +1035,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
             signal: stream.signal,
             projectId: resolvedProjectId,
             nonce,
+            jurisdiction: personalisation?.jurisdiction ?? null,
             // This route first makes the advertised assistant ID durable.
             // It emits [DONE] only after the reserved row has been populated.
             emitDone: false,

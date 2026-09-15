@@ -2535,6 +2535,7 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
             reasoning: selectedReasoningLevel,
             apiKeys: api_keys,
             signal: streamAbort.signal,
+            jurisdiction: modelSettings.personalisation?.jurisdiction ?? null,
         });
 
         const persistedEvents = stripTransientAssistantEvents(events);

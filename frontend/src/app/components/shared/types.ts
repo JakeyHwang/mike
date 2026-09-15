@@ -191,6 +191,42 @@ export type AskInputsResponseEvent = {
   responses: AskInputResponseItem[];
 };
 
+/** A Google "related searches" link carried by a settled `web_search` event. */
+export type WebSearchSuggestion = { label: string; url: string };
+
+export type WebSourceTier =
+  | "regulator"
+  | "official"
+  | "government"
+  | "other"
+  | "junk";
+
+/** One ranked source in a settled `web_search` event. */
+export type WebSearchEventSource = {
+  id: string;
+  title: string;
+  url: string;
+  domain: string;
+  tier: WebSourceTier;
+};
+
+export type WebSearchFailureReason =
+  | "rate_limited"
+  | "timeout"
+  | "unavailable"
+  | "turn_limit";
+
+export type ReadPageFailureReason =
+  | "not_found"
+  | "maintenance"
+  | "blocked"
+  | "unsupported_type"
+  | "too_large"
+  | "timeout"
+  | "fetch_failed"
+  | "turn_limit"
+  | "unavailable";
+
 export type AssistantEvent =
   | { type: "reasoning"; text: string; isStreaming?: boolean }
   | { type: "error"; message: string; safe_to_display?: boolean }
@@ -326,6 +362,26 @@ export type AssistantEvent =
       isStreaming?: boolean;
     }
   | {
+      type: "web_search";
+      /** The model's query, never the enriched one sent to the provider. */
+      query: string;
+      result_count: number;
+      results: WebSearchEventSource[];
+      suggestions: WebSearchSuggestion[];
+      reason?: WebSearchFailureReason;
+      isStreaming?: boolean;
+    }
+  | {
+      type: "read_page";
+      url: string;
+      domain: string;
+      title?: string;
+      kind?: "html" | "pdf";
+      char_count: number;
+      reason?: ReadPageFailureReason;
+      isStreaming?: boolean;
+    }
+  | {
       type: "case_citation";
       cluster_id: number | null;
       case_name: string | null;
@@ -433,11 +489,31 @@ export type CaseCitation = {
 };
 
 /**
+ * A web source returned by `web_search` and cited by the model. It has no
+ * panel representation: the row and the pill open `url` in a new tab.
+ * `snippet` is Gemini's own sentence about the source (`search_summary`) or
+ * the text of a directly built citation URL (`citation`); `quote` is only
+ * present when the model read the page with `read_page`.
+ */
+export type WebCitation = {
+  type: "citation_data";
+  kind: "web";
+  ref: number;
+  id: string;
+  url: string;
+  title: string;
+  domain: string;
+  snippet: string;
+  snippet_source: "search_summary" | "citation";
+  quote?: string;
+};
+
+/**
  * A citation emitted by the assistant. Document citations have doc/page
  * anchors. Case citations anchor to a CourtListener cluster and include a
- * quoted opinion passage.
+ * quoted opinion passage. Web citations anchor to a public URL.
  */
-export type Citation = DocumentCitation | CaseCitation;
+export type Citation = DocumentCitation | CaseCitation | WebCitation;
 
 export function panelDocumentType(filename: string): PanelDocumentType {
   const extension = filename.split(".").pop()?.toLowerCase();
@@ -452,8 +528,12 @@ function legacyCaseSubdocumentId(clusterId: number, opinionId: number): string {
   return `case:${clusterId}:opinion:${opinionId}`;
 }
 
+/**
+ * Build the side-panel document for a citation. Web citations are excluded by
+ * type: they have no panel document, so callers open `url` directly.
+ */
 export function panelDocumentFromCitation(
-  citation: Citation,
+  citation: DocumentCitation | CaseCitation,
   includeQuotes = true,
 ): PanelDocument {
   if (citation.document) {
@@ -607,7 +687,7 @@ function formatCellLocatorReadable(sheet?: string, cell?: string): string {
 export function getCitationCells(
   a: Citation,
 ): { sheet?: string; cell?: string }[] {
-  if (a.kind === "case") return [];
+  if (a.kind === "case" || a.kind === "web") return [];
   return getDocumentCitationQuotes(a)
     .filter((q) => q.cell || q.sheet)
     .map((q) => ({ sheet: q.sheet, cell: q.cell }));
@@ -641,7 +721,7 @@ export function expandDocumentQuoteEntry(entry: {
 export function getDocumentCitationQuotes(
   a: Citation,
 ): DocumentCitationQuote[] {
-  if (a.kind === "case") return [];
+  if (a.kind === "case" || a.kind === "web") return [];
   if (Array.isArray(a.quotes) && a.quotes.length) {
     return a.quotes.filter((entry) => entry.quote.trim().length > 0);
   }
@@ -654,16 +734,18 @@ export function getDocumentCitationQuotes(
  * cross-page citation with page "N-M" and a `[[PAGE_BREAK]]` split yields two.
  */
 export function expandCitationToEntries(a: Citation): CitationQuote[] {
-  if (a.kind === "case") return [];
+  if (a.kind === "case" || a.kind === "web") return [];
   return getDocumentCitationQuotes(a).flatMap(expandDocumentQuoteEntry);
 }
 
 /**
  * Format the page(s) of a citation for display, e.g. "Page 3" or "Page 41-42".
  * Spreadsheets have no meaningful page locator, so this returns "" for them —
- * callers join with `.filter(Boolean)` so the locator is simply omitted.
+ * callers join with `.filter(Boolean)` so the locator is simply omitted. Web
+ * sources are located by domain.
  */
 export function formatCitationPage(a: Citation): string {
+  if (a.kind === "web") return a.domain;
   if (a.kind === "case") {
     return a.citation || a.case_name || `Case ${a.cluster_id}`;
   }
@@ -691,6 +773,7 @@ export function formatCitationQuotePage(
   page: number | string,
   quote?: DocumentCitationQuote,
 ): string {
+  if (a.kind === "web") return a.domain;
   if (a.kind !== "case" && isSpreadsheetFilename(a.filename)) {
     return formatCellLocatorReadable(quote?.sheet, quote?.cell);
   }
@@ -707,6 +790,7 @@ export function cleanCitationQuoteText(_a: Citation, rawQuote: string): string {
 
 /** Produce a reader-friendly version of the quote (replaces [[PAGE_BREAK]] with "..."). */
 export function displayCitationQuote(a: Citation): string {
+  if (a.kind === "web") return a.quote ?? "";
   if (a.kind === "case") {
     return a.quotes
       .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))

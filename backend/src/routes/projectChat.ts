@@ -461,6 +461,7 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
             signal: streamAbort.signal,
             projectId,
             nonce,
+            jurisdiction: personalisation?.jurisdiction ?? null,
             emitDone: false,
         });
 
