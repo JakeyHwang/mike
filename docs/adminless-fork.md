@@ -63,10 +63,14 @@ The installer creates `~/MikeOSS` (`%USERPROFILE%\MikeOSS` on Windows):
 ```
 MikeOSS/
   bin/MikeOSS(.exe)        launcher; the updater stages MikeOSS.new(.exe) beside it
+  updater-auth/config.json Docker config with the firm's read-only deploy token, mounted
+                           read-only into the updater so it can pull its private image
   app/                     this repository's release tarball (compose, schema, migrations)
     .env                   compose interpolation: ports, public URLs, MIKE_VERSION,
-                           MIKE_HOST_* paths the updater needs, OLLAMA_BASE_URL
-    backend/.env           secrets: signing/encryption secrets, OLLAMA_API_KEY
+                           MIKE_HOST_* / MIKE_UPDATER_AUTH_DIR paths the updater needs,
+                           OLLAMA_BASE_URL
+    backend/.env           secrets: signing/encryption secrets, OLLAMA_API_KEY,
+                           WEB_SEARCH_GEMINI_API_KEY
     updates/               status.json, <tag>.log, lock (written by the updater)
     backups/               <utc>_<fromTag>.sql.gz (pg_dump before each update)
 ```

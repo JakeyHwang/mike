@@ -31,6 +31,13 @@ One install-wide key, `WEB_SEARCH_GEMINI_API_KEY` (see
 absent the two tools are neither advertised nor callable and the app behaves
 exactly as before.
 
+The `updater` service in `docker-compose.yml:393-410` mounts
+`${MIKE_UPDATER_AUTH_DIR:-./updater-auth}` read-only at `/root/.docker` so it
+can pull the private updater image: a container cannot use the host's
+credential store, so the installer writes a plain `config.json` there. An
+absent or empty directory is fine for public images. The default source-build
+directory `/updater-auth/` is gitignored (`.gitignore:53-54`).
+
 Conventions, structure rules and verification commands are in `AGENTS.md`
 above; this block never restates them.
 <!-- context:project-context:end -->
