@@ -15,11 +15,13 @@ import {
 } from "@/app/lib/mikeApi";
 import { userFacingApiError } from "@/app/lib/userFacingError";
 import { SettingsSection } from "../SettingsSection";
-import { UpdateStepList } from "./UpdateStepList";
+import { UpdateOverlay } from "./UpdateOverlay";
 
 // The update recreates the backend, so the poll has to be frequent enough to
 // notice the restart window. Tests drive the same loop far faster.
 const POLL_MS = process.env.NODE_ENV === "test" ? 10 : 3000;
+// Long enough to read "Updated to vX" before the page reloads into it.
+const RELOAD_DELAY_MS = process.env.NODE_ENV === "test" ? 10 : 2000;
 
 function formatDate(iso: string) {
     const date = new Date(iso);
@@ -97,6 +99,12 @@ export default function UpdatesPage() {
         };
     }, [polling, expectedTag]);
 
+    useEffect(() => {
+        if (status?.state !== "done") return;
+        const timer = setTimeout(() => window.location.reload(), RELOAD_DELAY_MS);
+        return () => clearTimeout(timer);
+    }, [status?.state]);
+
     const handleConfirm = async () => {
         setConfirming(false);
         setStarting(true);
@@ -136,8 +144,7 @@ export default function UpdatesPage() {
             ? info.latest
             : "Up to date";
     const finished = status?.state === "done";
-    const failed = status?.state === "failed";
-    const finishedTag = status?.tag ?? expectedTag ?? info?.current ?? "";
+    const updateTag = status?.tag ?? expectedTag ?? info?.current ?? "";
 
     return (
         <div className="space-y-8">
@@ -226,48 +233,11 @@ export default function UpdatesPage() {
             )}
 
             {status && (
-                <section className="space-y-3">
-                    <h3 className="font-serif text-xl font-medium text-gray-900">
-                        Progress
-                    </h3>
-                    <SettingsSection>
-                        <div className="space-y-3 p-4" aria-live="polite">
-                            {finished ? (
-                                <>
-                                    <p className="text-sm font-medium text-gray-900">
-                                        Updated to {finishedTag}
-                                    </p>
-                                    <p className="text-sm text-gray-500">
-                                        Reload Mike to pick up the new version.
-                                    </p>
-                                    <PillButton
-                                        tone="black"
-                                        size="sm"
-                                        onClick={() =>
-                                            window.location.reload()
-                                        }
-                                    >
-                                        Reload
-                                    </PillButton>
-                                </>
-                            ) : failed ? (
-                                <>
-                                    <p className="text-sm font-medium text-red-600">
-                                        {status.error ??
-                                            "The update did not finish."}
-                                    </p>
-                                    {status.logTail && (
-                                        <pre className="max-h-64 overflow-auto rounded-lg bg-gray-50 p-3 text-xs whitespace-pre-wrap text-gray-700">
-                                            {status.logTail}
-                                        </pre>
-                                    )}
-                                </>
-                            ) : (
-                                <UpdateStepList status={status} />
-                            )}
-                        </div>
-                    </SettingsSection>
-                </section>
+                <UpdateOverlay
+                    status={status}
+                    tag={updateTag}
+                    onDismiss={() => setStatus(null)}
+                />
             )}
 
             <ConfirmPopup

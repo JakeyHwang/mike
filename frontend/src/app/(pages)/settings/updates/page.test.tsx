@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     MikeApiError,
     getUpdateInfo,
@@ -64,11 +64,26 @@ const stepRow = (label: string) =>
         .getAllByRole("listitem")
         .find((item) => within(item).queryByText(label))!;
 
+// jsdom cannot navigate; the page reloads itself after a finished update.
+const reload = vi.fn();
+const realLocation = window.location;
+
 beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { ...realLocation, reload },
+    });
     mockedGetUpdateInfo.mockResolvedValue(info());
     mockedGetUpdateStatus.mockResolvedValue(running());
     mockedStartUpdate.mockResolvedValue({ tag: "v1.2.0" });
+});
+
+afterEach(() => {
+    Object.defineProperty(window, "location", {
+        configurable: true,
+        value: realLocation,
+    });
 });
 
 describe("UpdatesPage", () => {
@@ -164,7 +179,7 @@ describe("UpdatesPage", () => {
         );
     });
 
-    it("reports a failed update with its log tail", async () => {
+    it("reports a failed update with its log tail and lets the lawyer close it", async () => {
         const user = userEvent.setup();
         mockedGetUpdateStatus.mockResolvedValue(
             running({
@@ -184,32 +199,42 @@ describe("UpdatesPage", () => {
         await user.click(screen.getByRole("button", { name: /Update now/ }));
         await user.click(screen.getByRole("button", { name: "Update" }));
 
+        const dialog = await screen.findByRole("dialog");
         expect(
-            await screen.findByText("pull failed: manifest unknown"),
+            within(dialog).getByText("pull failed: manifest unknown"),
         ).toBeVisible();
         expect(
-            screen.getByText(/Error: manifest unknown/).tagName,
+            within(dialog).getByText(/Error: manifest unknown/).tagName,
         ).toBe("PRE");
+        expect(within(dialog).getByText(/MikeOSS rollback/)).toBeVisible();
+
+        await user.click(within(dialog).getByRole("button", { name: "Close" }));
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(
+            screen.getByRole("button", { name: /Update now/ }),
+        ).toBeEnabled();
     });
 
-    it("offers a reload once the update is done", async () => {
+    it("takes over the window while updating and reloads by itself once done", async () => {
         const user = userEvent.setup();
-        mockedGetUpdateStatus.mockResolvedValue(
-            running({
-                state: "done",
-                step: "launcher",
-                completedSteps: [
-                    "backup",
-                    "download",
-                    "configure",
-                    "pull",
-                    "start",
-                    "verify",
-                    "launcher",
-                ],
-                finishedAt: "2026-09-09T10:09:00.000Z",
-            }),
-        );
+        mockedGetUpdateStatus
+            .mockResolvedValueOnce(running())
+            .mockResolvedValue(
+                running({
+                    state: "done",
+                    step: "launcher",
+                    completedSteps: [
+                        "backup",
+                        "download",
+                        "configure",
+                        "pull",
+                        "start",
+                        "verify",
+                        "launcher",
+                    ],
+                    finishedAt: "2026-09-09T10:09:00.000Z",
+                }),
+            );
         render(<UpdatesPage />);
 
         await waitFor(() =>
@@ -220,11 +245,37 @@ describe("UpdatesPage", () => {
         await user.click(screen.getByRole("button", { name: /Update now/ }));
         await user.click(screen.getByRole("button", { name: "Update" }));
 
-        expect(await screen.findByText("Updated to v1.2.0")).toBeVisible();
-        expect(screen.getByRole("button", { name: "Reload" })).toBeVisible();
+        const dialog = await screen.findByRole("dialog");
+        expect(dialog).toHaveAttribute("aria-modal", "true");
         expect(
-            screen.getByRole("button", { name: /Update now/ }),
-        ).toBeDisabled();
+            within(dialog).getByText("Updating Mike to v1.2.0"),
+        ).toBeVisible();
+        expect(
+            within(dialog).getByText(/Don't close this window/),
+        ).toBeVisible();
+
+        expect(await screen.findByText("Updated to v1.2.0")).toBeVisible();
+        await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    });
+
+    it("says Mike is restarting while the backend is unreachable mid-update", async () => {
+        const user = userEvent.setup();
+        mockedGetUpdateStatus
+            .mockResolvedValueOnce(running())
+            .mockResolvedValue({ state: "unknown" });
+        render(<UpdatesPage />);
+
+        await waitFor(() =>
+            expect(
+                screen.getByRole("button", { name: /Update now/ }),
+            ).toBeEnabled(),
+        );
+        await user.click(screen.getByRole("button", { name: /Update now/ }));
+        await user.click(screen.getByRole("button", { name: "Update" }));
+
+        expect(await screen.findByText("Mike is restarting…")).toBeVisible();
+        // The step the updater last reported stays marked as in progress.
+        expect(stepRow("Download the release")).toHaveTextContent("Running");
     });
 
     it("keeps showing progress while the backend restarts mid-update", async () => {

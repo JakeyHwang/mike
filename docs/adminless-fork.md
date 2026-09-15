@@ -65,6 +65,8 @@ MikeOSS/
   bin/MikeOSS(.exe)        launcher; the updater stages MikeOSS.new(.exe) beside it
   updater-auth/config.json Docker config with the firm's read-only deploy token, mounted
                            read-only into the updater so it can pull its private image
+  browser-profile/         Chrome/Edge profile for the app-mode window the launcher opens
+                           (`--app=` chromeless window; falls back to the default browser)
   app/                     this repository's release tarball (compose, schema, migrations)
     .env                   compose interpolation: ports, public URLs, MIKE_VERSION,
                            MIKE_HOST_* / MIKE_UPDATER_AUTH_DIR paths the updater needs,
