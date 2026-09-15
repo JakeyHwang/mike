@@ -116,6 +116,12 @@ Consequences for how to write changes:
   `failed`; the lawyer can roll back. Keep releases small so that is rare.
 - Prerelease and draft releases are ignored by the update check. Use them to
   test CI without offering the build to firms.
+- Both update entry points — the in-app button and the launcher's startup
+  prompt / `MikeOSS update` — start the updater as a detached one-off
+  container and follow `app/updates/status.json` and `<tag>.log`; nothing
+  stays attached to `compose run` while the stack is recreated (an attached
+  run raced the one-off on Compose 5 and left half-created containers).
+  Keep the status document and log file as the only progress channel.
 
 ## Syncing with upstream
 
