@@ -6,14 +6,14 @@ const { completeText } = vi.hoisted(() => ({
 
 vi.mock("../llm", () => ({ completeText }));
 
-import { generateAssistantChatTitle } from "../chatTitle";
+import { excerptTitle, generateAssistantChatTitle } from "../chatTitle";
 
 describe("generateAssistantChatTitle", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
-    it("normalizes and returns the generated title", async () => {
+    it("normalizes and returns the generated title, with reasoning switched off", async () => {
         completeText.mockResolvedValue('  "German Liquidity Review."  ');
 
         await expect(
@@ -28,29 +28,50 @@ describe("generateAssistantChatTitle", () => {
                 model: "title-model",
                 maxTokens: 64,
                 apiKeys: {},
+                thinking: false,
             }),
         );
     });
 
-    it("uses the fallback for an empty model response", async () => {
+    it("falls back to the opening words of the message when the model returns nothing", async () => {
         completeText.mockResolvedValue("   ");
 
         await expect(
             generateAssistantChatTitle({
                 model: "title-model",
-                message: "Hello",
+                message:
+                    "Can you review this tenancy agreement and tell me whether the landlord can terminate early?",
             }),
-        ).resolves.toBe("Misc. Query");
+        ).resolves.toBe("Can you review this tenancy agreement and tell");
     });
 
-    it("limits generated titles to 80 characters", async () => {
-        completeText.mockResolvedValue("x".repeat(100));
+    it("discards a model answer that is prose rather than a title", async () => {
+        completeText.mockResolvedValue(
+            "We need to generate a concise title (3-6 words) for a chat in an AI Legal Platform that starts with this message. The title should describe",
+        );
 
         await expect(
             generateAssistantChatTitle({
                 model: "title-model",
-                message: "Hello",
+                message: "Limitation period for breach of contract in Singapore?",
             }),
-        ).resolves.toBe("x".repeat(80));
+        ).resolves.toBe("Limitation period for breach of contract in");
+    });
+
+    it("keeps only the first line of a multi-line answer", async () => {
+        completeText.mockResolvedValue("Demand Letter for Overdue Invoice\n\nThis title captures the topic.");
+
+        await expect(
+            generateAssistantChatTitle({ model: "m", message: "draft a letter of demand" }),
+        ).resolves.toBe("Demand Letter for Overdue Invoice");
+    });
+});
+
+describe("excerptTitle", () => {
+    it("cuts at a word boundary under 48 characters and drops trailing punctuation", () => {
+        expect(excerptTitle("What is the limitation period for a breach of contract claim in Singapore?")).toBe(
+            "What is the limitation period for a breach of",
+        );
+        expect(excerptTitle("   ")).toBe("Untitled chat");
     });
 });

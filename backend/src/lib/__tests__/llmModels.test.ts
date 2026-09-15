@@ -258,10 +258,10 @@ describe("default models", () => {
         );
     });
 
-    it("every default has a resolvable provider", () => {
-        expect(providerForModel(DEFAULT_MAIN_MODEL)).toBe("gemini");
-        expect(providerForModel(DEFAULT_TITLE_MODEL)).toBe("gemini");
-        expect(providerForModel(DEFAULT_TABULAR_MODEL)).toBe("gemini");
+    it("every default is served by the gateway (ollama provider)", () => {
+        expect(providerForModel(DEFAULT_MAIN_MODEL)).toBe("ollama");
+        expect(providerForModel(DEFAULT_TITLE_MODEL)).toBe("ollama");
+        expect(providerForModel(DEFAULT_TABULAR_MODEL)).toBe("ollama");
     });
 });
 

@@ -53,9 +53,11 @@ export const OPENAI_LOW_MODELS = ["gpt-5.6-luna", "gpt-5.4-mini"] as const;
 
 // AdminLess fork: inference is served by the ChatForGood gateway through the
 // OpenAI-compatible "ollama" provider (OLLAMA_BASE_URL / OLLAMA_API_KEY), so
-// a fresh account works without any cloud key.
+// a fresh account works without any cloud key. Titles use the chat model with
+// reasoning switched off (see chatTitle.ts): the gateway's small model
+// cannot produce a title even without reasoning.
 export const DEFAULT_MAIN_MODEL = "ollama/qwen/qwen3.8-27b";
-export const DEFAULT_TITLE_MODEL = "ollama/liquid/lfm2.5-2.6b";
+export const DEFAULT_TITLE_MODEL = "ollama/qwen/qwen3.8-27b";
 export const DEFAULT_TABULAR_MODEL = "ollama/qwen/qwen3.8-27b";
 
 const STANDARD_REASONING_LEVELS: readonly ReasoningLevel[] =

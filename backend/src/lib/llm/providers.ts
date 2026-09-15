@@ -37,6 +37,13 @@ type CompleteProviderParams = {
   user: string;
   maxTokens?: number;
   apiKeys?: UserApiKeys;
+  /**
+   * `false` asks a reasoning model to answer directly. Only the gateway
+   * (ollama) honours it, through vLLM's `chat_template_kwargs`; short
+   * completions such as titles otherwise spend their whole token budget on
+   * hidden reasoning and return empty text.
+   */
+  thinking?: boolean;
 };
 
 type RouterProvider = Extract<
@@ -207,9 +214,27 @@ export function ollamaAuthHeaders(): Record<string, string> {
   return key ? { Authorization: `Bearer ${key}` } : {};
 }
 
+/** Adds vLLM's thinking switch to the JSON body of a chat completion. */
+export function withThinkingDisabled(
+  fetchImpl: typeof aiSdkFetch,
+): typeof aiSdkFetch {
+  return (input, init) => {
+    if (typeof init?.body !== "string") return fetchImpl(input, init);
+    const body = JSON.parse(init.body) as Record<string, unknown>;
+    return fetchImpl(input, {
+      ...init,
+      body: JSON.stringify({
+        ...body,
+        chat_template_kwargs: { enable_thinking: false },
+      }),
+    });
+  };
+}
+
 async function createProviderAdapter(
   model: string,
   apiKeys?: UserApiKeys,
+  options: { thinking?: boolean } = {},
 ): Promise<AiSdkAdapterConfig> {
   const provider = providerForModel(model);
 
@@ -270,7 +295,7 @@ async function createProviderAdapter(
     name: "ollama",
     baseURL: ollamaBaseUrl(),
     headers: ollamaAuthHeaders(),
-    fetch: aiSdkFetch,
+    fetch: options.thinking === false ? withThinkingDisabled(aiSdkFetch) : aiSdkFetch,
   });
   return {
     provider,
@@ -362,6 +387,8 @@ export async function completeWithProvider(
 ): Promise<string> {
   return completeAiSdkText(
     params,
-    await createProviderAdapter(params.model, params.apiKeys),
+    await createProviderAdapter(params.model, params.apiKeys, {
+      thinking: params.thinking,
+    }),
   );
 }

@@ -16,6 +16,8 @@ export async function completeText(params: {
     user: string;
     maxTokens?: number;
     apiKeys?: UserApiKeys;
+    /** `false` makes a reasoning model answer directly (gateway models only). */
+    thinking?: boolean;
 }): Promise<string> {
     return completeWithProvider(params);
 }

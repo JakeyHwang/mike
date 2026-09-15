@@ -95,8 +95,10 @@ role to gate on).
 - `launch`: after Docker is ready and before `compose up`, check latest
   (5 s timeout, silent on failure). If newer: `Update to vX.Y.Z now? [Y/n]`,
   30 s timeout → **No** (the app must still come up unattended; the in-app
-  notice covers it). Yes → `compose run --rm updater apply <tag>` streaming
-  its log, then the normal launch.
+  notice covers it). Yes → `compose run -d --rm --no-deps updater apply <tag>`,
+  then follow `updates/<tag>.log` and `status.json` from the host until the
+  status is terminal (an attached run raced the one-off's recreate of the
+  stack on Compose 5), then the normal launch.
 - `update` command: same without the prompt. `rollback` command as above.
 - On every start: if `bin/MikeOSS.new(.exe)` exists, rename running binary to
   `.old`, move `.new` into place, delete `.old` on the following start.

@@ -9,10 +9,20 @@ import {
     type UIEvent,
 } from "react";
 import {
-  PanelLeft,
-  ChevronsUpDown,
+  Building2,
   ChevronDown,
+  ChevronsUpDown,
+  Folder,
+  FolderOpen,
+  History,
+  Library,
   Loader2,
+  LogOut,
+  MessageSquare,
+  PanelLeft,
+  Settings,
+  Table2,
+  Workflow,
 } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
@@ -22,18 +32,6 @@ import Link from "next/link";
 import { MikeIcon } from "@/app/components/chat/mike-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import { SidebarUpdateNotice } from "@/app/components/shared/SidebarUpdateNotice";
-import {
-    ChatSkeuoIcon,
-    FolderSkeuoIcon,
-    LibrarySkeuoIcon,
-    TabularReviewSkeuoIcon,
-    WorkflowSkeuoIcon,
-    OrganizationSkeuoIcon,
-    SettingsSkeuoIcon,
-    SignOutSkeuoIcon,
-} from "@/app/components/shared/AppSidebarSkeuoIcons";
-import { HistorySkeuoIcon } from "@/app/components/shared/HistorySkeuoIcon";
-import { ProjectSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { listProjectSummaries } from "@/app/lib/mikeApi";
 import type { Project } from "@/app/components/shared/types";
 import { cn } from "@/app/lib/utils";
@@ -44,15 +42,11 @@ import {
 } from "@/app/components/ui/liquid-surface";
 
 const NAV_ITEMS = [
-    { href: "/assistant", label: "Assistant", icon: ChatSkeuoIcon },
-    { href: "/projects", label: "Projects", icon: FolderSkeuoIcon },
-    { href: "/library", label: "Library", icon: LibrarySkeuoIcon },
-    {
-        href: "/tabular-reviews",
-        label: "Tabular Review",
-        icon: TabularReviewSkeuoIcon,
-    },
-    { href: "/workflows", label: "Workflows", icon: WorkflowSkeuoIcon },
+    { href: "/assistant", label: "Assistant", icon: MessageSquare },
+    { href: "/projects", label: "Projects", icon: Folder },
+    { href: "/library", label: "Library", icon: Library },
+    { href: "/tabular-reviews", label: "Tabular Review", icon: Table2 },
+    { href: "/workflows", label: "Workflows", icon: Workflow },
 ];
 
 const RECENT_PROJECT_PAGE_SIZE = 10;
@@ -331,8 +325,9 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                         className={`h-4 w-4 flex-shrink-0 ${
                                             isActive
                                                 ? "text-gray-900"
-                                                : "text-black"
+                                                : "text-gray-600"
                                         }`}
+                                        aria-hidden
                                     />
                                     {isOpen && (
                                         <span
@@ -434,10 +429,11 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                                                     : `text-gray-700 ${LIQUID_GLASS_HOVER_CLASS}`,
                                                             )}
                                                         >
-                                                            <ProjectSvgIcon
-                                                                open={isActive}
-                                                                className="h-3.5 w-3.5 shrink-0"
-                                                            />
+                                                            {isActive ? (
+                                                                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-gray-600" aria-hidden />
+                                                            ) : (
+                                                                <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500" aria-hidden />
+                                                            )}
                                                             <span className="min-w-0 flex-1 truncate">
                                                                 {project.name}
                                                             </span>
@@ -617,7 +613,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                                 LIQUID_GLASS_SELECTED_CLASS,
                                         )}
                                     >
-                                        <HistorySkeuoIcon className="h-4 w-4" />
+                                        <History className="h-4 w-4 text-gray-600" aria-hidden />
                                         History
                                     </button>
                                     <button
@@ -630,7 +626,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                             LIQUID_GLASS_HOVER_CLASS,
                                         )}
                                     >
-                                        <SettingsSkeuoIcon className="h-4 w-4" />
+                                        <Settings className="h-4 w-4 text-gray-600" aria-hidden />
                                         Settings
                                     </button>
                                     <button
@@ -643,7 +639,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                             LIQUID_GLASS_HOVER_CLASS,
                                         )}
                                     >
-                                        <OrganizationSkeuoIcon className="h-4 w-4" />
+                                        <Building2 className="h-4 w-4 text-gray-600" aria-hidden />
                                         Organizations
                                     </button>
                                     <button
@@ -662,7 +658,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                             LIQUID_GLASS_HOVER_CLASS,
                                         )}
                                     >
-                                        <SignOutSkeuoIcon className="h-4 w-4" />
+                                        <LogOut className="h-4 w-4 text-gray-600" aria-hidden />
                                         Sign out
                                     </button>
                                 </div>

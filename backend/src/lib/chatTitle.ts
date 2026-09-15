@@ -1,14 +1,38 @@
 import { completeText, type UserApiKeys } from "./llm";
 
-const TITLE_FALLBACK = "Misc. Query";
+/**
+ * Title used when the model gives nothing usable: the opening words of the
+ * message itself, which is what the sidebar shows for chats that never got a
+ * generated title. A fixed placeholder would leave every such chat looking
+ * identical.
+ */
+export function excerptTitle(message: string): string {
+    const words = message.replace(/\s+/g, " ").trim().split(" ");
+    let title = "";
+    for (const word of words) {
+        if (title && (title + " " + word).length > 48) break;
+        title = title ? title + " " + word : word;
+    }
+    return title.replace(/[.,:;!?]+$/, "") || "Untitled chat";
+}
 
-function normalizeGeneratedTitle(raw: string): string {
+/**
+ * Small reasoning models answer this prompt by restating it; when told about
+ * a fallback string they return the fallback. So the prompt asks for a title
+ * only, and anything that is not a short title is discarded in favour of an
+ * excerpt of the message.
+ */
+function normalizeGeneratedTitle(raw: string, message: string): string {
     const title = raw
+        .trim()
+        .split(/\r?\n/)[0]!
         .trim()
         .replace(/^["'`]+|["'`.,:;!?]+$/g, "")
         .trim();
-    if (!title) return TITLE_FALLBACK;
-    return title.slice(0, 80);
+    if (!title || title.length > 80 || title.split(/\s+/).length > 12) {
+        return excerptTitle(message);
+    }
+    return title;
 }
 
 export async function generateAssistantChatTitle(args: {
@@ -18,9 +42,13 @@ export async function generateAssistantChatTitle(args: {
 }): Promise<string> {
     const titleText = await completeText({
         model: args.model,
-        user: `Generate a concise title (3–6 words) for a chat in an AI Legal Platform that starts with this message. The title should describe the topic or document — do NOT include words like "Legal Assistant", "AI", "Chat", or any similar prefix. If there is not enough information to generate a title, return exactly "${TITLE_FALLBACK}". Return only the title, no quotes or punctuation.\n\nMessage: ${args.message.slice(0, 500)}`,
+        user: `Write a title of 3 to 6 words for a conversation on a legal work platform that begins with the message below. Name the topic, matter, or document. Do not use the words "Legal Assistant", "AI", "Chat", "Query" or "Request". Reply with the title only: no quotes, no punctuation, no explanation.\n\nMessage: ${args.message.slice(0, 500)}`,
         maxTokens: 64,
         apiKeys: args.apiKeys,
+        // The gateway's chat model reasons before answering; on a 64-token
+        // budget that reasoning consumed everything and the title came back
+        // empty, which is how every chat ended up as "Misc. Query".
+        thinking: false,
     });
-    return normalizeGeneratedTitle(titleText);
+    return normalizeGeneratedTitle(titleText, args.message);
 }
